@@ -213,14 +213,15 @@ def calc_parameters(time_series: pd.Series, sig_level: float = 0.05) -> tuple:
     return (p, d, q)
 
 
-def calc_arima(time_series: pd.Series, params: tuple) -> ARIMAResults:
+def calc_arima(time_series: pd.Series, params: tuple,
+               **kwargs) -> ARIMAResults:
     """
     Calculates the best fit ARIMA model for the given time series and given
     starting parameters.
 
     A grid search is performed to determine the best parameter combinations,
     ranging from (0, 0, 0) up to (p, d, q) where params = (p, d, q) ("best" as
-    determined by each model's AIC score).
+    determined by each model's AICc score).
 
     Parameters
     ----------
@@ -228,6 +229,8 @@ def calc_arima(time_series: pd.Series, params: tuple) -> ARIMAResults:
         The time series to use.
     `params`
         A 3-tuple containing the starting ARIMA parameters (p, d, q).
+    `**kwargs`
+        Arbitrary keyword argumnets
 
     Returns
     -------
@@ -243,10 +246,10 @@ def calc_arima(time_series: pd.Series, params: tuple) -> ARIMAResults:
         max_p=p,
         max_d=max(d, 1),
         max_q=q,
-        m=7,
+        m=52,  # weekly data
         seasonal=True,
-        alpha=0.05,
-        information_criterion="aicc"
+        information_criterion="aicc",
+        **kwargs
     )
 
 
