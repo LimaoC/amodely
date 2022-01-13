@@ -15,7 +15,7 @@ def calc_decomp(time_series: pd.DataFrame, measure: str, **kwargs):
         The time series to decompose
     `measure`
         The measure to use (i.e. variable of interest to decompose). Options
-        can be found in `./lib/lib.py` in the `STRUCTURE` dictionary.
+        can be found in `./lib.py` in the `STRUCTURE` dictionary.
     `**kwargs`
         Arbitrary keyword arguments
     """

@@ -42,7 +42,7 @@ def get_motor_graph(model: Amodely):
 
     `model`
         The amodely model to use for the graph. Uses the model's current
-        measure, dimension, and working dataframe to plot the grpah.
+        measure, dimension, and working dataframe to plot the graph.
     """
     measure_title = " ".join(model.measure.lower().split("_")).title()
     dimension_title = " ".join(model.dimension.lower().split("_")).title()
