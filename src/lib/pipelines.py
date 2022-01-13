@@ -33,34 +33,36 @@ class FillNA(BaseEstimator, TransformerMixin):
 
     def transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
         """
-        Returns the given dataframe with NaN entries replaced with the given
-        value.
+        Returns the given dataframe with NaN entries replaced.
         """
         return X.fillna(self.value)
 
 
-class Collapse(BaseEstimator, TransformerMixin):
+class CollapseDimensions(BaseEstimator, TransformerMixin):
     """
     Transformer to collapse multi-dimensional dataframes down to
     single-dimensional dataframes.
     """
     def __init__(self, measure: str, dimension: str) -> None:
         """
-        Initialises a Collapse transformer.
+        Initialises a CollapseDimensions transformer.
+
+        The dataframe rows are sorted by date (reverse chronological) and then
+        by dimension (alphabetical).
 
         Parameters
         ----------
         `measure`
-            The measure of the data. Determines which columns will be
-            aggregated when the data is collapsed.
-            Options: `conversion_rate`,
+            The measure of the data. Determines which columns in the dataframes
+            will be aggregated. Options can be found in `./lib.py` in the
+            `STRUCTURE` dictionary.
         `dimension`
             The dimension to collapse down to.
         """
         self.measure = measure
         self.dimension = dimension
 
-    def fit(self, X: pd.DataFrame, y=None) -> "Collapse":
+    def fit(self, X: pd.DataFrame, y=None) -> "CollapseDimensions":
         """
         No fitting needed.
         """
@@ -69,19 +71,11 @@ class Collapse(BaseEstimator, TransformerMixin):
     def transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
         """
         Returns the dataframe collapsed down to a single dimension.
-
-        The dataframe columns that are aggregated are determined by the measure
-        type (`measure`). Rows are sorted by date (chronologically) and then by
-        dimension (alphabetically).
         """
-        return (
-            X
-            .groupby([DATE, self.dimension])
-            # aggregate columns based on measure
-            .aggregate(STRUCTURE[self.measure])
-            .sort_values([DATE, self.dimension])
-            .reset_index()
-        )
+        return X.groupby([DATE, self.dimension]) \
+                .aggregate(STRUCTURE[self.measure]) \
+                .sort_values([DATE, self.dimension]) \
+                .reset_index()
 
 
 class FilterCategory(BaseEstimator, TransformerMixin):
@@ -99,7 +93,7 @@ class FilterCategory(BaseEstimator, TransformerMixin):
         `dimension`
             The dimension in which to search for the category(s).
         `category`
-            A list of categories to filter for. Can be a list of one category.
+            A list of categories to filter for.
         `remove`
             Whether to remove (True) or to filter (False) the given category(s)
             from the data. The default is False.
@@ -130,31 +124,40 @@ class ConvertFrequency(BaseEstimator, TransformerMixin):
     Transformer to convert a dataframe consisting of daily data to another
     given frequency.
 
-    Since this transformation will collapse the data, it needs to be done after
-    the data has been collapsed down to a single dimension.
+    Since this transformation will collapse the data, it should only be applied
+    once the data has been collapsed down to a single dimension (see the
+    `CollapseDimensions` transformer).
     """
     def __init__(self, dimension: str, frequency: str) -> None:
         """
         Initialises a ConvertFrequency transformer.
+
+        Parameters
+        ----------
+        `dimension`
+            The dimension of the data.
+        `frequency`
+            The frequency to convert the data to.
         """
         self.dimension = dimension
         self.frequency = frequency
 
-    def fit(self, X: pd.DataFrame, y=None):
+    def fit(self, X: pd.DataFrame, y=None) -> "ConvertFrequency":
         """
         No fitting needed.
         """
         return self
 
-    def transform(self, X: pd.DataFrame, y=None):
+    def transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+        """
+        Returns the dataframe collapsed down to the given frequency.
+        """
         # convert to the given frequency
-        X = (
-            X
-            .groupby(self.dimension)
-            .resample(self.frequency, closed="left", label="left", on=DATE)
-            .sum()
-            .reset_index()
-        )
+        X = X.groupby([DATE, self.dimension]) \
+             .resample(self.frequency, closed="left", label="left", on=DATE) \
+             .sum() \
+             .sort_values([DATE, self.dimension]) \
+             .reset_index()
 
         # switch first and second rows around so that date is the first column
         cols = list(X.columns)
@@ -174,33 +177,56 @@ class AddMeasure(BaseEstimator, TransformerMixin):
     needs to be done after the data has been collapsed down to a single
     dimension.
     """
-    def __init__(self, measure: str):
+    def __init__(self, measure: str, dimension: str) -> None:
         """
         Initialises an AddResponse transformer.
 
         Parameters
         ----------
         `measure`
-            The measure of the data. Determines which columns will be
-            aggregated when the data is collapsed.
-            Options: `conversion_rate`,
+            The measure to be added. Options can be found in `./lib.py` in
+            the `STRUCTURE` dictionary.
+        `dimension`
+            The dimension being used by the dataframe.
         """
         self.measure = measure
+        self.dimension = dimension
 
-    def fit(self, X: pd.DataFrame, y=None):
+    def fit(self, X: pd.DataFrame, y=None) -> "AddMeasure":
         """
         No fitting needed.
         """
         return self
 
-    def transform(self, X: pd.DataFrame, y=None):
+    def transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
         """
         Returns the dataframe with an added measure column at the end.
         """
-        if self.measure == "conversion_rate":
-            response = X["SALES_COUNT"] / X["QUOTE_COUNT"]
+        if self.measure == "SALES_PROPORTION":
+            sales = X.sort_values([DATE, self.dimension]) \
+                     .drop(columns=["QUOTE_COUNT"])
 
-        X[self.measure.upper()] = response
+            # store total number of sales for each week
+            total_sales = X.groupby(DATE)["SALES_COUNT"] \
+                           .sum() \
+                           .reset_index() \
+                           .rename(
+                               columns={"SALES_COUNT": "TOTAL_SALES_COUNT"})
+
+            # add total sales count column to data and calculate proportion
+            measure = sales.merge(total_sales, on=DATE, how="left")
+            measure["SALES_PROPORTION"] = \
+                measure["SALES_COUNT"] / measure["TOTAL_SALES_COUNT"]
+
+        elif self.measure == "CONVERSION_RATE":
+            measure = X["SALES_COUNT"] / X["QUOTE_COUNT"]
+
+        # df1 = df.sort_values([DATE, dimension])[[DATE, "SALES_COUNT"]]
+        # df2 = df.groupby(DATE)["SALES_COUNT"].sum().reset_index()
+        # df3 = df1.merge(df2, on=DATE, how="left")
+        # df["SALES_PROPORTION"] = df3["SALES_COUNT_x"] / df3["SALES_COUNT_y"]
+
+        X[self.measure] = measure
 
         return X
 
@@ -217,24 +243,25 @@ def dimension_pipeline(measure: str, dimension: str,
     Parameters
     ----------
     `measure`
-        The measure of the data. Determines which columns will be
-        aggregated when the data is collapsed.
-        Options: `conversion_rate`,
+        The measure of the data. Determines which columns will be aggregated
+        when the data is collapsed. Options can be found in `./lib.py` in the
+        `STRUCTURE` dictionary.
     `dimension`
         The dimension to use for the data transformation.
     `bad_categories`
-        Categories to be removed. Usually these are categories that have less
-        than 100 entries.
+        Categories to be removed. A good rule of thumb is to remove categories
+        with less than 100 entries, since these are the most likely to cause
+        problems in the anomaly detection stage.
     """
     return Pipeline([
         ("FillNA", FillNA(0)),
-        ("CollapseDimension", Collapse(measure, dimension)),
+        ("CollapseDimensions", CollapseDimensions(measure, dimension)),
         ("RemoveBadCategories", FilterCategory(
             # remove Unknown category and other bad categories
             dimension, ["Unknown", *bad_categories], remove=True
         )),
         ("ConvertWeekly", ConvertFrequency(dimension, "W-MON")),
-        ("AddMeasure", AddMeasure(measure))
+        ("AddMeasure", AddMeasure(measure, dimension))
     ])
 
 
