@@ -10,39 +10,53 @@ from .lib import pipelines as pl
 
 
 class Amodely:
-    def __init__(self, df: pd.DataFrame, measure: str) -> None:
+    def __init__(self, df: pd.DataFrame, measure: str = "CONVERSION_RATE",
+                 dimension: str = None) -> None:
         """
-        Initialises an anomaly detection model with a dataframe.
+        Initialises an anomaly detection model with a main dataframe, a measure
+        and a dimension.
+
+        The dataframe to be loaded in is the unprocessed "main" dataframe. The
+        measure and dimension are used in the anomaly detection algorithm and
+        the dashboard. They can be changed afterwards.
 
         Parameters
         ----------
         `df`
             The master/main dataframe.
         `measure`
-            The measure of the data. Determines which columns will be
-            aggregated when the data is collapsed.
-            Options: `conversion_rate`,
+            The selected measure. Options can be found in `./lib/lib.py` in the
+            `STRUCTURE` dictionary. The default is `CONVERSION_RATE`.
+        `dimension`
+            The selected dimension. The default is the leftmost dimension in
+            the dataframe.
         """
-        df = pl.FillNA(0).fit_transform(df)  # convert NaNs to zeroes
-        self.main_df = self.df = df
-        self.anomalies_ = pd.DataFrame()  # empty dataframe to begin with
-        self.measure = measure
-        self.dimension = self.dimensions[0]  # default to first dimension
+        # convert NaNs to zeroes in the dataframe first before assigning it
+        self.main_df = self.df = pl.FillNA(0).fit_transform(df)
+        self.measure = "CONVERSION_RATE" if measure is None else measure
+        self.dimension = self.dimensions[0] if dimension is None else dimension
+        # anomalies_ contains anomaly scores after an anomaly detection
+        # algo is run
+        self.anomalies_ = pd.DataFrame()
 
     @property
     def measure(self) -> str:
         """
-        Returns the measure.
+        Returns the current measure in use.
+
+        This is the measure displayed on the dashboard when the anomaly
+        detection algorithm is run.
         """
-        return self._feature
+        return self._measure
 
     @measure.setter
     def measure(self, measure: str) -> None:
         """
-        Sets the measure to the given string.
+        Sets the measure to the given string. Options can be found in
+        `./lib/lib.py` in the `STRUCTURE` dictionary.
         """
         if measure in STRUCTURE.keys():
-            self._feature = measure
+            self._measure = measure
         else:
             raise AttributeError("Measure not found.")
 
@@ -57,19 +71,31 @@ class Amodely:
     @property
     def dimension(self) -> str:
         """
-        Returns the dimension currently in use (by the dashboard).
+        Returns the current dimension in use.
+
+        This is the dimension displayed on the dashboard when the anomaly
+        detection algorithm is run.
         """
-        return self._dimensions
+        return self._dimension
 
     @dimension.setter
     def dimension(self, dimension: str) -> None:
         """
-        Sets the dimension to be used (by the dashboard).
+        Sets the dimension to the given string. Options can be found by
+        accessing the `dimensions` property.
         """
+        dimension = dimension.upper()
         if dimension in self.dimensions:
             self._dimension = dimension
         else:
             raise AttributeError("Dimension not found.")
+
+    @property
+    def categories(self) -> list[str]:
+        """
+        Returns a list of all the categories in the current dimension.
+        """
+        return sorted(set(self.df[self.dimension]))
 
     @property
     def main_df(self) -> pd.DataFrame:
@@ -128,20 +154,18 @@ class Amodely:
         `reset_working`
             Whether to reset the working dataframe after appending.
         """
-        df = pl.FillNA(0).fit_transform(df)  # convert Nans to zeroes
+        df = pl.FillNA(0).fit_transform(df)  # convert NaNs to zeroes
 
         # concatenate dataframe if the columns are the same
         if set(self._main_df.columns) == set(df.columns):
             self._main_df = pd.concat(
                 objs=[self._main_df, df],
                 axis=0,
-                ignore_index=True  # reset index after concatenation
-            )
+                ignore_index=True)  # reset index after concatenation
 
             if sort_after:
-                self._main_df.sort_values(
-                    by=DATE, inplace=True, ignore_index=True
-                )
+                self._main_df.sort_values(by=DATE, inplace=True,
+                                          ignore_index=True)
 
             if reset_working:
                 self.reset_working()
@@ -160,63 +184,72 @@ class Amodely:
         """
         self.anomalies_.to_excel(f"{filename}.xlsx")
 
-    def detect_anomalies(self, method: str, dimension: str, steps: int = 4):
+    def detect_anomalies(self, method: str, steps: int = 4):
         """
-        Runs an ARIMA anomaly detection algorithm
-        """
-        # data preparation on dataframe
+        Runs an ARIMA anomaly detection algorithm on the model's selected
+        measure and dimension. The output is stored in the `anomalies_`
+        attribute.
 
-        # only keep categories (cats) that have more than 100 occurrences
-        bad_cats = self.df[dimension].value_counts() <= 100
-        bad_cats = bad_cats.drop(bad_cats.index[~bad_cats]).index
+        Parameters
+        ----------
+        `method`
+            The method to use for the anomaly detection algorithm.
+            Options: `arima`, `stl`.
+        `steps`
+        """
+        # only keep categories that have more than 100 occurrences
+        filt = self.df[self.dimension].value_counts() <= 100
+        bad_categories = filt.drop(filt.index[~filt]).index
 
         # collapse data to one dimension, remove bad categories, convert to
         # weekly data, add measure variable
-        self.df = (
-            pl
-            .dimension_pipeline(self.measure, dimension, bad_cats)
-            .fit_transform(self.df)
-        )
+        self.df = pl.dimension_pipeline(self.measure, self.dimension,
+                                        bad_categories) \
+                    .fit_transform(self.df)
 
-        response = self.measure.upper()
-        categories = sorted(set(self.df[dimension]))
         anomalies = []
 
-        for category in categories:
-            print(f"{dimension}: {category}")
+        for category in self.categories:
+            print(f"{self.dimension}: {category}")  # debug
             start_time = time.time()
 
             # filter for given category
-            df = (
-                pl.category_pipeline(dimension, [category])
-                .fit_transform(self.df)
-            )
+            df = pl.category_pipeline(self.dimension, [category]) \
+                   .fit_transform(self.df)
 
             if method == "arima":
-                # split into training and test dataset
-                # test dataset is last 7 days
+                # split into training and test dataset, size of test dataset
+                # determined by steps parameter
                 train, test = df[:-steps], df[-steps:]
-                train_response, test_response = train[response], test[response]
+                train_values = train[self.measure]
+                test_values = test[self.measure]
 
-                params = atools.calc_parameters(train_response)
-                model = atools.calc_arima(train_response, params)
+                # calculate best fit arima model
+                arima_params = atools.calc_parameters(train_values)
+                model = atools.calc_arima(train_values, arima_params,
+                                          alpha=0.05)
 
-                _, ci = model.predict(
-                    n_periods=steps, return_conf_int=True
-                )
+                # get confidence interval of forecast
+                _, conf_int = model.predict(n_periods=steps,
+                                            return_conf_int=True)
 
+                # iterate through test dataset and mark data points as outliers
+                # if they are outside the confidence interval
                 indices = []
-                for i, value in enumerate(test_response):
-                    if not (ci[i][0] <= value <= ci[i][1]):  # outlier
+                for i, value in enumerate(test_values):
+                    if not (conf_int[i][0] <= value <= conf_int[i][1]):
+                        # outlier
                         index = train.shape[0] + i
                         indices.append(index)
 
                 # collate anomalies in one dataframe
                 anomalies.append(df.iloc[indices, :].copy())
-            elif method == "stl":
-                decomp = stl.calc_decomp(df, response)
 
-                residuals = decomp.resid
+            elif method == "stl":
+                decomposition = stl.calc_decomp(df, self.measure,
+                                                period=12)
+
+                residuals = decomposition.resid
                 mean, std = np.mean(residuals), np.std(residuals)
                 sig = 0.05
                 min_bound = norm.ppf(sig/2, loc=mean, scale=std)
@@ -228,6 +261,9 @@ class Amodely:
                         indices.append(i)
 
                 # collate anomalies in one dataframe
+                stds = (residuals / std).rename("STANDARD_DEVIATIONS") \
+                                        .reset_index()
+                df = df.merge(stds, on=DATE, how="left")
                 anomalies.append(df.iloc[indices, :].copy())
 
             print(f"Done, took {round(time.time() - start_time, 2)} seconds\n")
