@@ -153,7 +153,7 @@ class ConvertFrequency(BaseEstimator, TransformerMixin):
         Returns the dataframe collapsed down to the given frequency.
         """
         # convert to the given frequency
-        X = X.groupby([DATE, self.dimension]) \
+        X = X.groupby(self.dimension) \
              .resample(self.frequency, closed="left", label="left", on=DATE) \
              .sum() \
              .sort_values([DATE, self.dimension]) \
@@ -203,30 +203,58 @@ class AddMeasure(BaseEstimator, TransformerMixin):
         Returns the dataframe with an added measure column at the end.
         """
         if self.measure == "SALES_PROPORTION":
-            sales = X.sort_values([DATE, self.dimension]) \
-                     .drop(columns=["QUOTE_COUNT"])
+            sales = X.sort_values([DATE, self.dimension])
 
             # store total number of sales for each week
             total_sales = X.groupby(DATE)["SALES_COUNT"] \
                            .sum() \
                            .reset_index() \
-                           .rename(
-                               columns={"SALES_COUNT": "TOTAL_SALES_COUNT"})
+                           .rename(columns={
+                               "SALES_COUNT": "TOTAL_SALES_COUNT"
+                            })
 
             # add total sales count column to data and calculate proportion
-            measure = sales.merge(total_sales, on=DATE, how="left")
-            measure["SALES_PROPORTION"] = \
-                measure["SALES_COUNT"] / measure["TOTAL_SALES_COUNT"]
+            merged = sales.merge(total_sales, on=DATE, how="left")
+            measure = merged["SALES_COUNT"] / merged["TOTAL_SALES_COUNT"]
+
+            # add total sales count column to dataframe
+            X["TOTAL_SALES_COUNT"] = merged["TOTAL_SALES_COUNT"]
 
         elif self.measure == "CONVERSION_RATE":
             measure = X["SALES_COUNT"] / X["QUOTE_COUNT"]
 
-        # df1 = df.sort_values([DATE, dimension])[[DATE, "SALES_COUNT"]]
-        # df2 = df.groupby(DATE)["SALES_COUNT"].sum().reset_index()
-        # df3 = df1.merge(df2, on=DATE, how="left")
-        # df["SALES_PROPORTION"] = df3["SALES_COUNT_x"] / df3["SALES_COUNT_y"]
-
+        # add measure column to dataframe
         X[self.measure] = measure
+
+        return X
+
+
+class FilterYear(BaseEstimator, TransformerMixin):
+    """
+    Transformer to filter for a given year in the data.
+    """
+    def __init__(self, year: int) -> None:
+        """
+        Initialises a FilterYear transformer.
+
+        Parameters
+        ----------
+        `year`
+            The year to filter for
+        """
+        self.year = year
+
+    def fit(self, X: pd.DataFrame, y=None) -> "FilterYear":
+        """
+        No fitting needed.
+        """
+        return self
+
+    def transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+        """
+        Returns the dataframe filtered for the given year.
+        """
+        X = X[X[DATE].dt.year == self.year]
 
         return X
 
@@ -254,7 +282,6 @@ def dimension_pipeline(measure: str, dimension: str,
         problems in the anomaly detection stage.
     """
     return Pipeline([
-        ("FillNA", FillNA(0)),
         ("CollapseDimensions", CollapseDimensions(measure, dimension)),
         ("RemoveBadCategories", FilterCategory(
             # remove Unknown category and other bad categories
