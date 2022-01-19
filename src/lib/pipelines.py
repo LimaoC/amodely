@@ -202,7 +202,11 @@ class AddMeasure(BaseEstimator, TransformerMixin):
         """
         Returns the dataframe with an added measure column at the end.
         """
-        if self.measure == "QUOTE_PROPORTION":
+        if self.measure == "QUOTE_VOLUME":
+            measure = X["QUOTE_COUNT"]
+        elif self.measure == "SALES_VOLUME":
+            measure = X["SALES_COUNT"]
+        elif self.measure == "QUOTE_PROPORTION":
             quotes = X.sort_values([DATE, self.dimension])
 
             # store total number of quotes for each week
@@ -219,7 +223,6 @@ class AddMeasure(BaseEstimator, TransformerMixin):
 
             # add total quote count column to dataframe
             X["TOTAL_QUOTE_COUNT"] = merged["TOTAL_QUOTE_COUNT"]
-
         elif self.measure == "SALES_PROPORTION":
             sales = X.sort_values([DATE, self.dimension])
 
@@ -237,7 +240,6 @@ class AddMeasure(BaseEstimator, TransformerMixin):
 
             # add total sales count column to dataframe
             X["TOTAL_SALES_COUNT"] = merged["TOTAL_SALES_COUNT"]
-
         elif self.measure == "CONVERSION_RATE":
             measure = X["SALES_COUNT"] / X["QUOTE_COUNT"]
 
