@@ -10,7 +10,7 @@ from .lib import pipelines as pl
 
 
 class Amodely:
-    def __init__(self, df: pd.DataFrame, measure: str = "CONVERSION_RATE",
+    def __init__(self, df: pd.DataFrame, measure: str,
                  dimension: str = None) -> None:
         """
         Initialises an anomaly detection model with a main dataframe, a measure
@@ -197,6 +197,7 @@ class Amodely:
             Options: `arima`, `stl`.
         `steps`
         """
+        self.reset_working()
         # only keep categories that have more than 100 occurrences
         filt = self.df[self.dimension].value_counts() <= 100
         bad_categories = filt.drop(filt.index[~filt]).index
@@ -267,6 +268,8 @@ class Amodely:
                 anomalies.append(df.iloc[indices, :].copy())
 
             print(f"Done, took {round(time.time() - start_time, 2)} seconds\n")
+
+        self.reset_working()
 
         self.anomalies_ = pd.concat(anomalies).sort_index()
         return self.anomalies_
