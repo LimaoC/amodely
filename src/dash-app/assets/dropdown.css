@@ -1,0 +1,14 @@
+/* input box */
+.Select-control {
+    margin-top: 10px;
+}
+
+/* hover on dropdown */
+.Select-control:hover {
+    cursor: pointer;
+}
+
+/* hover on options in dropdown  */
+.VirtualizedSelectOption:hover {
+    cursor: pointer;
+}

@@ -1,0 +1,26 @@
+.webpage {
+    background-color: var(--light);
+    padding: 20px;
+}
+
+.dashboard {
+    background-color: var(--light);
+    border: none;
+}
+
+.dashboard > * > .row, [class^='col-'] > * {
+    padding: 0.5rem 0;
+}
+
+.col-3 > div, .col-3 > div > .card {
+    height: 100%;
+}
+
+.js-plotly-plot {
+    min-height: 450px;
+    height: 100%;
+}
+
+.heading {
+    text-align: center;
+}
