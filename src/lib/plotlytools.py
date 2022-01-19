@@ -107,7 +107,7 @@ class MasterGraph(Graph):
             },
             title=get_title(self.model),
             template="flatly",
-            color_discrete_sequence=px.colors.qualitative.Safe
+            color_discrete_sequence=px.colors.qualitative.Pastel
         )
 
         fig.update_layout({
@@ -228,7 +228,7 @@ class AnomalyGraph(Graph):
             y=self.model.measure,
             color=self.model.dimension,
             template="flatly",
-            color_discrete_sequence=px.colors.qualitative.Safe
+            color_discrete_sequence=px.colors.qualitative.Pastel
         )
 
         for category in self.model.categories:
