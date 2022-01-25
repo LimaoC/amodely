@@ -22,12 +22,12 @@ class Amodely:
 
         Parameters
         ----------
-        `df`
-            The master/main dataframe.
-        `measure`
-            The selected measure. Options can be found in `./lib/lib.py` in the
-            `STRUCTURE` dictionary. The default is `CONVERSION_RATE`.
-        `dimension`
+        df
+            The main dataframe to be loaded in.
+        measure
+            The selected measure. A list of options can be found in
+            /src/lib/lib.py. The default is "CONVERSION_RATE".
+        dimension
             The selected dimension. The default is the leftmost dimension in
             the dataframe.
         """
@@ -35,6 +35,7 @@ class Amodely:
         self.main_df = self.df = pl.FillNA(0).fit_transform(df)
         self.measure = "CONVERSION_RATE" if measure is None else measure
         self.dimension = self.dimensions[0] if dimension is None else dimension
+
         # anomalies_ contains anomaly scores after an anomaly detection
         # algo is run
         self.anomalies_ = pd.DataFrame()
@@ -42,23 +43,37 @@ class Amodely:
     @property
     def measure(self) -> str:
         """
-        Returns the current measure in use.
-
-        This is the measure displayed on the dashboard when the anomaly
-        detection algorithm is run.
+        Returns the selected measure.
         """
         return self._measure
 
     @measure.setter
     def measure(self, measure: str) -> None:
         """
-        Sets the measure to the given string. Options can be found in
-        `./lib/lib.py` in the `STRUCTURE` dictionary.
+        Sets the measure to the given string.
         """
         if measure in STRUCTURE.keys():
             self._measure = measure
         else:
             raise AttributeError("Measure not found.")
+
+    @property
+    def dimension(self) -> str:
+        """
+        Returns the selected dimension.
+        """
+        return self._dimension
+
+    @dimension.setter
+    def dimension(self, dimension: str) -> None:
+        """
+        Sets the dimension to the given string.
+        """
+        dimension = dimension.upper()
+        if dimension in self.dimensions:
+            self._dimension = dimension
+        else:
+            raise AttributeError("Dimension not found.")
 
     @property
     def dimensions(self) -> list[str]:
@@ -69,31 +84,9 @@ class Amodely:
         return dimensions
 
     @property
-    def dimension(self) -> str:
-        """
-        Returns the current dimension in use.
-
-        This is the dimension displayed on the dashboard when the anomaly
-        detection algorithm is run.
-        """
-        return self._dimension
-
-    @dimension.setter
-    def dimension(self, dimension: str) -> None:
-        """
-        Sets the dimension to the given string. Options can be found by
-        accessing the `dimensions` property.
-        """
-        dimension = dimension.upper()
-        if dimension in self.dimensions:
-            self._dimension = dimension
-        else:
-            raise AttributeError("Dimension not found.")
-
-    @property
     def categories(self) -> list[str]:
         """
-        Returns a list of all the categories in the current dimension.
+        Returns a list of all the categories in the selected dimension.
         """
         return sorted(set(self.df[self.dimension]))
 
@@ -107,11 +100,7 @@ class Amodely:
     @main_df.setter
     def main_df(self, df: pd.DataFrame) -> None:
         """
-        Sets the main dataframe to the given dataframe.
-
-        This method should not be manually called. It should only be used when
-        the original dataset is first loaded into the class. Any additions to
-        the data should be done through the `append()` method.
+        Sets the main dataframe to a copy of the given dataframe.
         """
         self._main_df = df.copy()
 
@@ -129,30 +118,41 @@ class Amodely:
         """
         self._df = df.copy()
 
+    @property
+    def bad_categories(self) -> list[str]:
+        """
+        Returns a list of the bad categories in the working dataframe.
+
+        Bad categories have less than 100 data points and as such tend to cause
+        problems with the anomaly detection algorithm.
+        """
+        filt = self.df[self.dimension].value_counts() <= 100
+        return filt.drop(filt.index[~filt]).index
+
     def reset_working(self) -> None:
         """
         Resets the working dataframe to the state of the main dataframe.
         """
-        self.df = self.main_df
+        self.df = self.main_df.copy()
 
-    def append(self, df: pd.DataFrame, sort_after: bool = False,
-               reset_working: bool = False) -> None:
+    def append(self, df: pd.DataFrame, sort_after: bool = False) -> None:
         """
-        Appends additional data to the end of the main dataframe.
+        Appends additional data to the dataframe.
 
-        If the columns of the given dataframe are not the same as the columns
-        of the main dataframe, this method does nothing.
+        The columns of the given dataframe must be the same as the columns of
+        the main dataframe, or this method will do nothing. Note: this method
+        doesn't affect the working dataframe.
 
         Parameters
         ----------
-        `df`
-            Dataframe containing new entries to be added to the main dataframe
-        `sort_after`
-            Whether a sort operation should be performed on the main dataframe
-            after insertion. This is only needed if the data from the
-            additional dataframe is not sorted (by date) to begin with.
-        `reset_working`
-            Whether to reset the working dataframe after appending.
+        df
+            Dataframe containing new entries to be added to the main dataframe.
+        sort_after
+            Whether a sort should be performed on the main dataframe after
+            appending the data. This is only needed if the data from the
+            additional dataframe does not "match" the sort of the main
+            dataframe (e.g. dimensions and categories not sorted in the same
+            order).
         """
         df = pl.FillNA(0).fit_transform(df)  # convert NaNs to zeroes
 
@@ -163,62 +163,60 @@ class Amodely:
                 axis=0,
                 ignore_index=True)  # reset index after concatenation
 
-            if sort_after:
-                self._main_df.sort_values(by=DATE, inplace=True,
-                                          ignore_index=True)
-
-            if reset_working:
-                self.reset_working()
+            if sort_after:  # sort by date
+                self._main_df.sort_values(
+                    by=DATE, inplace=True, ignore_index=True)
 
     def download_anomalies(self, filename: str = "output") -> None:
         """
         Downloads the dataframe of anomalies to a spreadsheet (.xlsx).
 
-        If no anomaly detection algorithm is run before this method is called,
-        the output file will be empty.
+        If no anomaly detection algorithm was run before this method was
+        called, the output file will be empty. Note: data points considered to
+        be anomalies are determined by the `sig` parameter that was used in the
+        detect_anomalies() method.
 
         Parameters
         ----------
-        `filename`
+        filename
             The filename of the output spreadsheet. The default is output.xlsx.
         """
         self.anomalies_.to_excel(f"{filename}.xlsx")
 
-    def detect_anomalies(self, method: str, steps: int = 4):
+    def detect_anomalies(self, method: str, sig: float = 0.05) -> None:
         """
-        Runs an ARIMA anomaly detection algorithm on the model's selected
-        measure and dimension. The output is stored in the `anomalies_`
-        attribute.
+        Runs an anomaly detection algorithm on the model's working dataframe
+        using the selected measure and dimension. The output is stored in the
+        anomalies_ attribute.
+
+        The methods that have been implemented are ARIMA (outdated) and STL.
 
         Parameters
         ----------
-        `method`
-            The method to use for the anomaly detection algorithm.
-            Options: `arima`, `stl`.
-        `steps`
+        method
+            The method to use for the anomaly detection algorithm. The
+            available options are "arima", "stl",
+        sig
+            The significance level to use for the anomaly detection algorithm.
         """
         self.reset_working()
-        # only keep categories that have more than 100 occurrences
-        filt = self.df[self.dimension].value_counts() <= 100
-        bad_categories = filt.drop(filt.index[~filt]).index
 
         # collapse data to one dimension, remove bad categories, convert to
         # weekly data, add measure variable
         self.df = pl.dimension_pipeline(self.measure, self.dimension,
-                                        bad_categories) \
+                                        bad_categories=self.bad_categories) \
                     .fit_transform(self.df)
 
+        start_time = time.time()
         anomalies = []
 
         for category in self.categories:
-            print(f"{self.dimension}: {category}")  # debug
-            start_time = time.time()
-
             # filter for given category
-            df = pl.category_pipeline(self.dimension, [category]) \
+            df = pl.FilterCategory(self.dimension, [category]) \
                    .fit_transform(self.df)
 
-            if method == "arima":
+            if method == "arima":  # NOT UP TO DATE
+                steps = 4
                 # split into training and test dataset, size of test dataset
                 # determined by steps parameter
                 train, test = df[:-steps], df[-steps:]
@@ -247,29 +245,29 @@ class Amodely:
                 anomalies.append(df.iloc[indices, :].copy())
 
             elif method == "stl":
-                decomposition = stl.calc_decomp(df, self.measure,
-                                                period=12)
-
+                # decompose data and keep residuals
+                decomposition = stl.calc_decomp(df, self.measure, period=12)
                 residuals = decomposition.resid
+
+                # add column for number of standard deviations from mean and
+                # merge it with dataframe
                 mean, std = np.mean(residuals), np.std(residuals)
-                sig = 0.05
-                min_bound = norm.ppf(sig/2, loc=mean, scale=std)
-                max_bound = norm.ppf(1-sig/2, loc=mean, scale=std)
-
-                indices = []
-                for i, value in enumerate(residuals):
-                    if not (min_bound <= value <= max_bound):
-                        indices.append(i)
-
-                # collate anomalies in one dataframe
-                stds = (residuals / std).rename("STANDARD_DEVIATIONS") \
-                                        .reset_index()
+                stds = ((residuals-mean) / std).rename("STANDARD_DEVIATIONS") \
+                                               .reset_index()
                 df = df.merge(stds, on=DATE, how="left")
-                anomalies.append(df.iloc[indices, :].copy())
 
-            print(f"Done, took {round(time.time() - start_time, 2)} seconds\n")
+                # add column to classify data points as anomalies based on sig.
+                # level (assume standard normal - this almost always holds true
+                # for the residuals)
+                min_bound, max_bound = norm.ppf(sig/2), norm.ppf(1-sig/2)
+                df["ANOMALY"] = (df["STANDARD_DEVIATIONS"] <= min_bound) | \
+                                (df["STANDARD_DEVIATIONS"] >= max_bound)
 
+                # add df of anomalies for this category to list
+                anomalies.append(df)
+
+        print(f"Done, took {round(time.time() - start_time, 2)} seconds\n")
+
+        # clean up working dataframe and add anomalies to anomalies_ attribute
         self.reset_working()
-
         self.anomalies_ = pd.concat(anomalies).sort_index()
-        return self.anomalies_
