@@ -12,7 +12,7 @@ An anomaly detection algorithm can be run on the working dataframe using the met
 
 Parameters
 - `df` <br /> The master dataframe to be loaded in.
-- `measure` <br /> The selected measure. A list of options can be found in `/src/lib/lib.py`. The default is `CONVERSION_RATE`.
+- `measure` <br /> The selected measure. A list of options can be found in `/src/lib/lib.py`. The default is `"CONVERSION_RATE"`.
 - `dimension` <br /> The selected dimension. The default is the leftmost dimension in the dataframe.
 
 #### `@property Amodely.measure -> str`
