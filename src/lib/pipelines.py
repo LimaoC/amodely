@@ -1,9 +1,12 @@
 """
-Pipelines for data processing/preparation/transformations
+This module contains pipelines for data processing, preparation, and
+transformations throughout the anomaly detection process and for the anomaly
+detection dashboard.
 """
 
 
 import pandas as pd
+from scipy.stats import norm
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
 
@@ -12,16 +15,17 @@ from .lib import STRUCTURE, DATE
 
 class FillNA(BaseEstimator, TransformerMixin):
     """
-    Transformer to fill NaNs in dataframes with some value.
+    Transformer to fill NaNs in dataframes with some given value (defaults to
+    0).
     """
-    def __init__(self, value: float) -> None:
+    def __init__(self, value: float = 0) -> None:
         """
         Initialises a FillNA transformer.
 
         Parameters
         ----------
-        `value`
-            Value to fill NaN entries with.
+        value
+            Value to fill NaN entries with. The default is 0.
         """
         self.value = value
 
@@ -40,8 +44,8 @@ class FillNA(BaseEstimator, TransformerMixin):
 
 class CollapseDimensions(BaseEstimator, TransformerMixin):
     """
-    Transformer to collapse multi-dimensional dataframes down to
-    single-dimensional dataframes.
+    Transformer to collapse a multi-dimensional dataframe down to a single
+    dimension.
     """
     def __init__(self, measure: str, dimension: str) -> None:
         """
@@ -52,11 +56,11 @@ class CollapseDimensions(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        `measure`
+        measure
             The measure of the data. Determines which columns in the dataframes
-            will be aggregated. Options can be found in `./lib.py` in the
-            `STRUCTURE` dictionary.
-        `dimension`
+            will be aggregated. A list of options can be found in
+            /src/lib/lib.py.
+        dimension
             The dimension to collapse down to.
         """
         self.measure = measure
@@ -119,6 +123,36 @@ class FilterCategory(BaseEstimator, TransformerMixin):
         return (X[~filt].reset_index(drop=True) if self.remove else X[filt])
 
 
+class FilterYear(BaseEstimator, TransformerMixin):
+    """
+    Transformer to filter for a given year in the data.
+    """
+    def __init__(self, year: int) -> None:
+        """
+        Initialises a FilterYear transformer.
+
+        Parameters
+        ----------
+        `year`
+            The year to filter for
+        """
+        self.year = year
+
+    def fit(self, X: pd.DataFrame, y=None) -> "FilterYear":
+        """
+        No fitting needed.
+        """
+        return self
+
+    def transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
+        """
+        Returns the dataframe filtered for the given year.
+        """
+        X = X[X[DATE].dt.year == self.year]
+
+        return X
+
+
 class ConvertFrequency(BaseEstimator, TransformerMixin):
     """
     Transformer to convert a dataframe consisting of daily data to another
@@ -126,7 +160,7 @@ class ConvertFrequency(BaseEstimator, TransformerMixin):
 
     Since this transformation will collapse the data, it should only be applied
     once the data has been collapsed down to a single dimension (see the
-    `CollapseDimensions` transformer).
+    CollapseDimensions transformer).
     """
     def __init__(self, dimension: str, frequency: str) -> None:
         """
@@ -134,9 +168,9 @@ class ConvertFrequency(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        `dimension`
+        dimension
             The dimension of the data.
-        `frequency`
+        frequency
             The frequency to convert the data to.
         """
         self.dimension = dimension
@@ -175,7 +209,7 @@ class AddMeasure(BaseEstimator, TransformerMixin):
 
     Since the measures are usually aggregated metrics, this transformation
     needs to be done after the data has been collapsed down to a single
-    dimension.
+    dimension (see the CollapseDimensions transformer).
     """
     def __init__(self, measure: str, dimension: str) -> None:
         """
@@ -183,10 +217,10 @@ class AddMeasure(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        `measure`
-            The measure to be added. Options can be found in `./lib.py` in
-            the `STRUCTURE` dictionary.
-        `dimension`
+        measure
+            The measure to be added. A list of options can be found in
+            /src/lib/lib.py.
+        dimension
             The dimension being used by the dataframe.
         """
         self.measure = measure
@@ -249,22 +283,25 @@ class AddMeasure(BaseEstimator, TransformerMixin):
         return X
 
 
-class FilterYear(BaseEstimator, TransformerMixin):
+class FilterOutliers(BaseEstimator, TransformerMixin):
     """
-    Transformer to filter for a given year in the data.
+    Transformer to filter for outliers in normally distributed data.
+
+    The data must have been run through the anomaly detection algorithm first;
+    i.e. X.anomalies_ is not empty.
     """
-    def __init__(self, year: int) -> None:
+    def __init__(self, sig: float) -> None:
         """
-        Initialises a FilterYear transformer.
+        Initialises a FilterOutliers transformer
 
         Parameters
         ----------
-        `year`
-            The year to filter for
+        sig
+            The significance level to use to determine the outliers.
         """
-        self.year = year
+        self.sig = sig
 
-    def fit(self, X: pd.DataFrame, y=None) -> "FilterYear":
+    def fit(self, X: pd.DataFrame, y=None) -> "FilterOutliers":
         """
         No fitting needed.
         """
@@ -272,34 +309,32 @@ class FilterYear(BaseEstimator, TransformerMixin):
 
     def transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
         """
-        Returns the dataframe filtered for the given year.
+        Returns the dataframe with non-outlier data points filtered out.
         """
-        X = X[X[DATE].dt.year == self.year]
+        min_bound, max_bound = norm.ppf(self.sig/2), norm.ppf(1 - self.sig/2)
 
-        return X
+        return X[(X["STANDARD_DEVIATIONS"] >= max_bound) |
+                 (X["STANDARD_DEVIATIONS"] <= min_bound)]
 
 
-def dimension_pipeline(measure: str, dimension: str,
+def dimension_pipeline(measure: str, dimension: str, frequency: str = "W-MON",
                        bad_categories: list[str] = []) -> Pipeline:
     """
-    Creates and returns a pipeline to collapse down to a single dimension and
-    to add a measure variable.
-
-    This is a pre-processing step to prepare the data for the anomaly detection
-    algorithm.
+    Creates and returns a pipeline to collapse down to a single dimension,
+    resample to a given frequency, and add a measure variable.
 
     Parameters
     ----------
-    `measure`
+    measure
         The measure of the data. Determines which columns will be aggregated
-        when the data is collapsed. Options can be found in `./lib.py` in the
-        `STRUCTURE` dictionary.
-    `dimension`
+        when the data is collapsed. A list of options can be found in
+        /src/lib/lib.py.
+    dimension
         The dimension to use for the data transformation.
-    `bad_categories`
-        Categories to be removed. A good rule of thumb is to remove categories
-        with less than 100 entries, since these are the most likely to cause
-        problems in the anomaly detection stage.
+    bad_categories
+        Categories to be removed.
+    frequency
+        The frequency of the data. See ConvertFrequency().
     """
     return Pipeline([
         ("CollapseDimensions", CollapseDimensions(measure, dimension)),
@@ -307,25 +342,16 @@ def dimension_pipeline(measure: str, dimension: str,
             # remove Unknown category and other bad categories
             dimension, ["Unknown", *bad_categories], remove=True
         )),
-        ("ConvertWeekly", ConvertFrequency(dimension, "W-MON")),
+        ("ConvertWeekly", ConvertFrequency(dimension, frequency)),
         ("AddMeasure", AddMeasure(measure, dimension))
     ])
 
 
-def category_pipeline(dimension: str, category: list[str]) -> Pipeline:
-    """
-    Creates and returns a pipeline to filter for a category from
-    single-dimensional data.
-
-    Parameters
-    ----------
-    `dimension`
-        The dimension to use for the data transformation.
-    `category`
-        A category or list of categories to filter for from the dataframe.
-    """
+def outliers_pipeline(dimension: str, category: str,
+                      sig: float = 0.05) -> Pipeline:
     return Pipeline([
-        ("FilterCategory", FilterCategory(dimension, category))
+        ("FilterCategory", FilterCategory(dimension, [category])),
+        ("FilterOutliers", FilterOutliers(sig))
     ])
 
 

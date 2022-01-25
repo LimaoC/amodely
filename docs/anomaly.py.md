@@ -1,14 +1,18 @@
-# amodely.py
+## amodely.py
 
-### `Amodely(df: pd.DataFrame, measure: str, dimension: str)`
-
-Amodely is the main anomaly detection model class. It handles the dataframes and runs the anomaly detection algorithm(s) on the data.
+This module contains the Amodely class, which is the anomaly detection model. It handles the dataframes and runs the anomaly detection algorithm(s) on the data.
 
 The model stores two dataframes - the main dataframe (`main_df` attribute) and the working dataframe (`df` attribute). Data processing, pipelining, anomaly detection algorithms, etc. are done on the working dataframe. When you want to use another configuration (i.e. another measure or dimension), the working dataframe can be reset to the state of the main dataframe using the `reset_working()` method. For this reason, the main dataframe shouldn't be altered at all.
 
 (adding to the main df)
 
 An anomaly detection algorithm can be run on the working dataframe using the method `detect_anomalies()` (configuration options available). The results of the algorithm are stored in the `anomalies_` dataframe attribute (see [this](https://blog.finxter.com/why-does-the-scikit-learn-library-use-a-trailing-underscore-convention-for-attribute-names/) for an explanation of the underscore).
+
+---
+
+### `Amodely()`
+
+#### `Amodely.__init__(df: pd.DataFrame, measure: str, dimension: str)`
 
 Parameters
 - `df` <br /> The master dataframe to be loaded in.

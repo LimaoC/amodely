@@ -1,11 +1,14 @@
-# CONSTANTS
-DATE = "QUOTE_DATE"
-DEFAULT_MEASURE = "CONVERSION_RATE"  # for dash app
-DEFAULT_DIMENSION = "STATE_CODE"  # for dash app
+"""
+This file contains constants necessary for the model and dashboard to function.
+"""
 
-# STRUCTURE contains the measure variables (QUOTE_VOLUME, SALES_VOLUME, etc.)
-# and the aggregation options used for each variable (see the `Collapse`
-# transformer in `./pipelines.py`).
+# ----------------------------- DATA CONSTANTS ------------------------------ #
+
+DATE = "QUOTE_DATE"  # name of quote date column
+
+# STRUCTURE contains measure variables as keys, which are themselves
+# dictionaries containing the aggregation options used for each measure
+# variable. See the CollapseDimensions transformer in /src/lib/pipelines.py.
 STRUCTURE = {
     "QUOTE_VOLUME": {
         "QUOTE_COUNT": "sum",
@@ -41,6 +44,20 @@ STRUCTURE = {
     "CHOICE_OF_REPAIRER_TAKE_UP_RATE": {
 
     },
+}
+
+# ----------------------- PLOTLY DASHBOARD CONSTANTS ------------------------ #
+
+DEFAULT_MEASURE = "CONVERSION_RATE"  # default on first load for graphs
+DEFAULT_DIMENSION = "STATE_CODE"  # default on first load for graphs
+DEFAULT_HOVER_DATA = {  # default on first load for graphs
+    "points": [
+        {
+            "curveNumber": 0,
+            "x": "2019-12-30",
+            "y": 0
+        }
+    ]
 }
 
 if __name__ == '__main__':

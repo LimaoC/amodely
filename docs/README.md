@@ -1,8 +1,8 @@
 # Amodely Documentation
 
 ## /src/
-- [dash-app]()
-- [lib]()
-- [amodely.py](/anomaly.py.md)
+- [dash-app](./dash-app)
+- [lib](./lib)
+- [amodely.py](./anomaly.py.md)
 
 ---
