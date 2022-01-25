@@ -173,8 +173,8 @@ class Amodely:
 
         If no anomaly detection algorithm was run before this method was
         called, the output file will be empty. Note: data points considered to
-        be anomalies are determined by the `sig` parameter that was used in the
-        detect_anomalies() method.
+        be anomalies are determined by the sig_level parameter that was used in
+        the detect_anomalies() method.
 
         Parameters
         ----------
@@ -183,7 +183,7 @@ class Amodely:
         """
         self.anomalies_.to_excel(f"{filename}.xlsx")
 
-    def detect_anomalies(self, method: str, sig: float = 0.05) -> None:
+    def detect_anomalies(self, method: str, sig_level: float = 0.05) -> None:
         """
         Runs an anomaly detection algorithm on the model's working dataframe
         using the selected measure and dimension. The output is stored in the
@@ -196,7 +196,7 @@ class Amodely:
         method
             The method to use for the anomaly detection algorithm. The
             available options are "arima", "stl",
-        sig
+        sig_level
             The significance level to use for the anomaly detection algorithm.
         """
         self.reset_working()
@@ -259,7 +259,8 @@ class Amodely:
                 # add column to classify data points as anomalies based on sig.
                 # level (assume standard normal - this almost always holds true
                 # for the residuals)
-                min_bound, max_bound = norm.ppf(sig/2), norm.ppf(1-sig/2)
+                min_bound = norm.ppf(sig_level/2)
+                max_bound = norm.ppf(1-sig_level/2)
                 df["ANOMALY"] = (df["STANDARD_DEVIATIONS"] <= min_bound) | \
                                 (df["STANDARD_DEVIATIONS"] >= max_bound)
 
