@@ -149,8 +149,15 @@ class Amodely:
         Bad categories have less than 100 data points and as such tend to cause
         problems with the anomaly detection algorithm.
         """
+        # find categories with less than 100 entries
         filt = self.df[self.dimension].value_counts() <= 100
-        return filt.drop(filt.index[~filt]).index
+
+        # find "Unknown" categories
+        for category in self.categories:
+            if "Unknown" in category:
+                return [*filt.drop(filt.index[~filt]).index, category]
+
+        return [*filt.drop(filt.index[~filt]).index]
 
     def reset_working(self) -> None:
         """
