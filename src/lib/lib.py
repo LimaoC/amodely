@@ -2,6 +2,10 @@
 This file contains constants necessary for the model and dashboard to function.
 """
 
+
+import plotly.express as px
+
+
 # ----------------------------- DATA CONSTANTS ------------------------------ #
 
 DATE = "QUOTE_DATE"  # name of quote date column
@@ -25,25 +29,7 @@ STRUCTURE = {
     "CONVERSION_RATE": {
         "QUOTE_COUNT": "sum",
         "SALES_COUNT": "sum",
-    },
-    "MATURED_CONVERSION_RATE": {
-
-    },
-    "AVERAGE_PREMIUM": {
-
-    },
-    "AVERAGE_INSURED_VALUE": {
-
-    },
-    "HIRE_CAR_TAKE_UP_RATE": {
-
-    },
-    "ROADSIDE_TAKE_UP_RATE": {
-
-    },
-    "CHOICE_OF_REPAIRER_TAKE_UP_RATE": {
-
-    },
+    }
 }
 
 # ----------------------- PLOTLY DASHBOARD CONSTANTS ------------------------ #
@@ -59,6 +45,8 @@ DEFAULT_HOVER_DATA = {  # default on first load for graphs
         }
     ]
 }
+TEMPLATE = "flatly"
+COLOR_PALETTE = px.colors.qualitative.Pastel
 
 if __name__ == '__main__':
     print("This file is not meant to be run on its own.")
