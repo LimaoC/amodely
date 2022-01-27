@@ -27,3 +27,7 @@ def calc_decomp(time_series: pd.DataFrame, measure: str, **kwargs):
     """
     stl = STL(time_series.set_index(DATE)[measure], **kwargs).fit()
     return stl
+
+
+if __name__ == '__main__':
+    print("This file is not meant to be run on its own.")
