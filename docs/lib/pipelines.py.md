@@ -49,6 +49,8 @@ Returns the dataframe with an added measure column at the end.
 
 Creates and returns a pipeline to collapse down to a single dimension, resample to a given frequency, and add a measure variable.
 
+If dimension == "ALL", all dimensions will be collapsed down (i.e. no dimensions remaining).
+
 Parameters
 - `measure` <br /> The measure of the data. Determines which columns will be aggregated when the data is collapsed. A list of options can be found in `/src/lib/lib.py`.
 - `dimension` <br /> The dimension to use for the data transformation.

@@ -74,12 +74,19 @@ class CollapseDimensions(BaseEstimator, TransformerMixin):
 
     def transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
         """
-        Returns the dataframe collapsed down to a single dimension.
+        Returns the dataframe collapsed down to a single dimension, unless
+        dimension == "ALL".
         """
-        return X.groupby([DATE, self.dimension]) \
-                .aggregate(STRUCTURE[self.measure]) \
-                .sort_values([DATE, self.dimension]) \
-                .reset_index()
+        if self.dimension == "ALL":
+            return X.groupby(DATE) \
+                    .aggregate(STRUCTURE[self.measure]) \
+                    .sort_values(DATE) \
+                    .reset_index()
+        else:
+            return X.groupby([DATE, self.dimension]) \
+                    .aggregate(STRUCTURE[self.measure]) \
+                    .sort_values([DATE, self.dimension]) \
+                    .reset_index()
 
 
 class FilterCategory(BaseEstimator, TransformerMixin):
@@ -186,18 +193,27 @@ class ConvertFrequency(BaseEstimator, TransformerMixin):
         """
         Returns the dataframe collapsed down to the given frequency.
         """
-        # convert to the given frequency
-        X = X.groupby(self.dimension) \
-             .resample(self.frequency, closed="left", label="left", on=DATE) \
-             .sum() \
-             .sort_values([DATE, self.dimension]) \
-             .reset_index()
+        if self.dimension == "ALL":
+            X = X.resample(
+                     self.frequency, closed="left", label="left", on=DATE) \
+                 .sum() \
+                 .sort_values(DATE) \
+                 .reset_index()
+        else:
+            # convert to the given frequency
+            X = X.groupby(self.dimension) \
+                .resample(
+                    self.frequency, closed="left", label="left", on=DATE) \
+                .sum() \
+                .sort_values([DATE, self.dimension]) \
+                .reset_index()
 
-        # switch first and second rows around so that date is the first column
-        cols = list(X.columns)
-        cols[0], cols[1] = cols[1], cols[0]
-        X[[X.columns[0], X.columns[1]]] = X[[X.columns[1], X.columns[0]]]
-        X.columns = cols
+            # switch first and second rows around so that date is the first
+            # column
+            cols = list(X.columns)
+            cols[0], cols[1] = cols[1], cols[0]
+            X[[X.columns[0], X.columns[1]]] = X[[X.columns[1], X.columns[0]]]
+            X.columns = cols
 
         return X
 
@@ -241,39 +257,45 @@ class AddMeasure(BaseEstimator, TransformerMixin):
         elif self.measure == "SALES_VOLUME":
             measure = X["SALES_COUNT"]
         elif self.measure == "QUOTE_PROPORTION":
-            quotes = X.sort_values([DATE, self.dimension])
+            if self.dimension == "ALL":
+                measure = 1  # proportion is always 1 for "ALL"
+            else:
+                quotes = X.sort_values([DATE, self.dimension])
 
-            # store total number of quotes for each week
-            total_quotes = X.groupby(DATE)["QUOTE_COUNT"] \
-                            .sum() \
-                            .reset_index() \
-                            .rename(columns={
-                                "QUOTE_COUNT": "TOTAL_QUOTE_COUNT"
-                            })
+                # store total number of quotes for each week
+                total_quotes = X.groupby(DATE)["QUOTE_COUNT"] \
+                                .sum() \
+                                .reset_index() \
+                                .rename(columns={
+                                    "QUOTE_COUNT": "TOTAL_QUOTE_COUNT"
+                                })
 
-            # add total quote count column to data and calculate proportion
-            merged = quotes.merge(total_quotes, on=DATE, how="left")
-            measure = merged["QUOTE_COUNT"] / merged["TOTAL_QUOTE_COUNT"]
+                # add total quote count column to data and calculate proportion
+                merged = quotes.merge(total_quotes, on=DATE, how="left")
+                measure = merged["QUOTE_COUNT"] / merged["TOTAL_QUOTE_COUNT"]
 
-            # add total quote count column to dataframe
-            X["TOTAL_QUOTE_COUNT"] = merged["TOTAL_QUOTE_COUNT"]
+                # add total quote count column to dataframe
+                X["TOTAL_QUOTE_COUNT"] = merged["TOTAL_QUOTE_COUNT"]
         elif self.measure == "SALES_PROPORTION":
-            sales = X.sort_values([DATE, self.dimension])
+            if self.dimension == "ALL":
+                measure = 1  # proportion is always 1 for "ALL"
+            else:
+                sales = X.sort_values([DATE, self.dimension])
 
-            # store total number of sales for each week
-            total_sales = X.groupby(DATE)["SALES_COUNT"] \
-                           .sum() \
-                           .reset_index() \
-                           .rename(columns={
-                               "SALES_COUNT": "TOTAL_SALES_COUNT"
-                            })
+                # store total number of sales for each week
+                total_sales = X.groupby(DATE)["SALES_COUNT"] \
+                               .sum() \
+                               .reset_index() \
+                               .rename(columns={
+                                "SALES_COUNT": "TOTAL_SALES_COUNT"
+                                })
 
-            # add total sales count column to data and calculate proportion
-            merged = sales.merge(total_sales, on=DATE, how="left")
-            measure = merged["SALES_COUNT"] / merged["TOTAL_SALES_COUNT"]
+                # add total sales count column to data and calculate proportion
+                merged = sales.merge(total_sales, on=DATE, how="left")
+                measure = merged["SALES_COUNT"] / merged["TOTAL_SALES_COUNT"]
 
-            # add total sales count column to dataframe
-            X["TOTAL_SALES_COUNT"] = merged["TOTAL_SALES_COUNT"]
+                # add total sales count column to dataframe
+                X["TOTAL_SALES_COUNT"] = merged["TOTAL_SALES_COUNT"]
         elif self.measure == "CONVERSION_RATE":
             measure = X["SALES_COUNT"] / X["QUOTE_COUNT"]
 
@@ -323,6 +345,9 @@ def dimension_pipeline(measure: str, dimension: str, frequency: str = "W-MON",
     Creates and returns a pipeline to collapse down to a single dimension,
     resample to a given frequency, and add a measure variable.
 
+    If dimension == "ALL", all dimensions will be collapsed down (i.e. no
+    dimensions remaining).
+
     Parameters
     ----------
     measure
@@ -336,15 +361,22 @@ def dimension_pipeline(measure: str, dimension: str, frequency: str = "W-MON",
     frequency
         The frequency of the data. See ConvertFrequency().
     """
-    return Pipeline([
-        ("CollapseDimensions", CollapseDimensions(measure, dimension)),
-        ("RemoveBadCategories", FilterCategory(
-            # remove Unknown category and other bad categories
-            dimension, ["Unknown", *bad_categories], remove=True
-        )),
-        ("ConvertWeekly", ConvertFrequency(dimension, frequency)),
-        ("AddMeasure", AddMeasure(measure, dimension))
-    ])
+    if dimension == "ALL":
+        return Pipeline([
+            ("CollapseDimensions", CollapseDimensions(measure, dimension)),
+            ("ConvertWeekly", ConvertFrequency(dimension, frequency)),
+            ("AddMeasure", AddMeasure(measure, dimension))
+        ])
+    else:
+        return Pipeline([
+            ("CollapseDimensions", CollapseDimensions(measure, dimension)),
+            ("RemoveBadCategories", FilterCategory(
+                # remove Unknown category and other bad categories
+                dimension, ["Unknown", *bad_categories], remove=True
+            )),
+            ("ConvertWeekly", ConvertFrequency(dimension, frequency)),
+            ("AddMeasure", AddMeasure(measure, dimension))
+        ])
 
 
 def outliers_pipeline(dimension: str, category: str,

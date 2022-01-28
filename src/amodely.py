@@ -93,7 +93,7 @@ class Amodely:
         Sets the dimension to the given string.
         """
         dimension = dimension.upper()
-        if dimension in self.dimensions:
+        if dimension in self.dimensions or dimension == "ALL":
             self._dimension = dimension
         else:
             raise AttributeError("Dimension not found.")
@@ -149,15 +149,18 @@ class Amodely:
         Bad categories have less than 100 data points and as such tend to cause
         problems with the anomaly detection algorithm.
         """
-        # find categories with less than 100 entries
-        filt = self.df[self.dimension].value_counts() <= 100
+        if self.dimension == "ALL":
+            return []
+        else:
+            # find categories with less than 100 entries
+            filt = self.df[self.dimension].value_counts() <= 100
 
-        # find "Unknown" categories
-        for category in self.categories:
-            if "Unknown" in category:
-                return [*filt.drop(filt.index[~filt]).index, category]
+            # find "Unknown" categories
+            for category in self.categories:
+                if "Unknown" in category:
+                    return [*filt.drop(filt.index[~filt]).index, category]
 
-        return [*filt.drop(filt.index[~filt]).index]
+            return [*filt.drop(filt.index[~filt]).index]
 
     def reset_working(self) -> None:
         """
