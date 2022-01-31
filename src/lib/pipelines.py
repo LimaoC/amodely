@@ -74,19 +74,20 @@ class CollapseDimensions(BaseEstimator, TransformerMixin):
 
     def transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
         """
-        Returns the dataframe collapsed down to a single dimension, unless
-        dimension == "ALL".
+        Returns the dataframe collapsed down to a single dimension.
+
+        If the selected dimension is ALL, then all dimensions are aggregated
+        together.
         """
         if self.dimension == "ALL":
-            return X.groupby(DATE) \
-                    .aggregate(STRUCTURE[self.measure]) \
-                    .sort_values(DATE) \
-                    .reset_index()
+            sort = DATE  # sort df by date
         else:
-            return X.groupby([DATE, self.dimension]) \
-                    .aggregate(STRUCTURE[self.measure]) \
-                    .sort_values([DATE, self.dimension]) \
-                    .reset_index()
+            sort = [DATE, self.dimension]  # sort df by date then by dimension
+
+        return X.groupby(sort) \
+                .aggregate(STRUCTURE[self.measure]) \
+                .sort_values(sort) \
+                .reset_index()
 
 
 class FilterCategory(BaseEstimator, TransformerMixin):
@@ -121,8 +122,15 @@ class FilterCategory(BaseEstimator, TransformerMixin):
 
     def transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
         """
-        Returns the dataframe with filters applied.
+        Returns the dataframe with category filters applied.
+
+        If the selected dimension is ALL, the original dataframe is returned as
+        there are no categories to filter for.
         """
+        if self.dimension == "ALL":
+            # apply no filters; return the original dataframe
+            return X
+
         regex = "|".join(self.category)
         filt = X[self.dimension.upper()].str.contains(regex)
 
@@ -194,22 +202,21 @@ class ConvertFrequency(BaseEstimator, TransformerMixin):
         Returns the dataframe collapsed down to the given frequency.
         """
         if self.dimension == "ALL":
-            X = X.resample(
-                     self.frequency, closed="left", label="left", on=DATE) \
+            X = X.resample(self.frequency, closed="left", label="left",
+                           on=DATE) \
                  .sum() \
                  .sort_values(DATE) \
                  .reset_index()
         else:
             # convert to the given frequency
             X = X.groupby(self.dimension) \
-                .resample(
-                    self.frequency, closed="left", label="left", on=DATE) \
+                .resample(self.frequency, closed="left", label="left",
+                          on=DATE) \
                 .sum() \
                 .sort_values([DATE, self.dimension]) \
                 .reset_index()
 
-            # switch first and second rows around so that date is the first
-            # column
+            # switch first and second rows to keep date in the first column
             cols = list(X.columns)
             cols[0], cols[1] = cols[1], cols[0]
             X[[X.columns[0], X.columns[1]]] = X[[X.columns[1], X.columns[0]]]
@@ -226,6 +233,9 @@ class AddMeasure(BaseEstimator, TransformerMixin):
     Since the measures are usually aggregated metrics, this transformation
     needs to be done after the data has been collapsed down to a single
     dimension (see the CollapseDimensions transformer).
+
+    For proportion measures (e.g. sales proportion, quote proportion) which are
+    based on categories, the resulting measure column will consist of 1s.
     """
     def __init__(self, measure: str, dimension: str) -> None:
         """
@@ -252,50 +262,47 @@ class AddMeasure(BaseEstimator, TransformerMixin):
         """
         Returns the dataframe with an added measure column at the end.
         """
-        if self.measure == "QUOTE_VOLUME":
+        if self.dimension == "ALL" and self.measure in \
+                ("QUOTE_PROPORTION", "SALES_PROPORTION"):
+            measure = 1  # proportion measures are always 1 for ALL
+        elif self.measure == "QUOTE_VOLUME":
             measure = X["QUOTE_COUNT"]
         elif self.measure == "SALES_VOLUME":
             measure = X["SALES_COUNT"]
         elif self.measure == "QUOTE_PROPORTION":
-            if self.dimension == "ALL":
-                measure = 1  # proportion is always 1 for "ALL"
-            else:
-                quotes = X.sort_values([DATE, self.dimension])
+            quotes = X.sort_values([DATE, self.dimension])
 
-                # store total number of quotes for each week
-                total_quotes = X.groupby(DATE)["QUOTE_COUNT"] \
-                                .sum() \
-                                .reset_index() \
-                                .rename(columns={
-                                    "QUOTE_COUNT": "TOTAL_QUOTE_COUNT"
-                                })
+            # store total number of quotes for each week
+            total_quotes = X.groupby(DATE)["QUOTE_COUNT"] \
+                            .sum() \
+                            .reset_index() \
+                            .rename(columns={
+                                "QUOTE_COUNT": "TOTAL_QUOTE_COUNT"
+                            })
 
-                # add total quote count column to data and calculate proportion
-                merged = quotes.merge(total_quotes, on=DATE, how="left")
-                measure = merged["QUOTE_COUNT"] / merged["TOTAL_QUOTE_COUNT"]
+            # add total quote count column to data and calculate proportion
+            merged = quotes.merge(total_quotes, on=DATE, how="left")
+            measure = merged["QUOTE_COUNT"] / merged["TOTAL_QUOTE_COUNT"]
 
-                # add total quote count column to dataframe
-                X["TOTAL_QUOTE_COUNT"] = merged["TOTAL_QUOTE_COUNT"]
+            # add total quote count column to dataframe
+            X["TOTAL_QUOTE_COUNT"] = merged["TOTAL_QUOTE_COUNT"]
         elif self.measure == "SALES_PROPORTION":
-            if self.dimension == "ALL":
-                measure = 1  # proportion is always 1 for "ALL"
-            else:
-                sales = X.sort_values([DATE, self.dimension])
+            sales = X.sort_values([DATE, self.dimension])
 
-                # store total number of sales for each week
-                total_sales = X.groupby(DATE)["SALES_COUNT"] \
-                               .sum() \
-                               .reset_index() \
-                               .rename(columns={
-                                "SALES_COUNT": "TOTAL_SALES_COUNT"
-                                })
+            # store total number of sales for each week
+            total_sales = X.groupby(DATE)["SALES_COUNT"] \
+                           .sum() \
+                           .reset_index() \
+                           .rename(columns={
+                               "SALES_COUNT": "TOTAL_SALES_COUNT"
+                           })
 
-                # add total sales count column to data and calculate proportion
-                merged = sales.merge(total_sales, on=DATE, how="left")
-                measure = merged["SALES_COUNT"] / merged["TOTAL_SALES_COUNT"]
+            # add total sales count column to data and calculate proportion
+            merged = sales.merge(total_sales, on=DATE, how="left")
+            measure = merged["SALES_COUNT"] / merged["TOTAL_SALES_COUNT"]
 
-                # add total sales count column to dataframe
-                X["TOTAL_SALES_COUNT"] = merged["TOTAL_SALES_COUNT"]
+            # add total sales count column to dataframe
+            X["TOTAL_SALES_COUNT"] = merged["TOTAL_SALES_COUNT"]
         elif self.measure == "CONVERSION_RATE":
             measure = X["SALES_COUNT"] / X["QUOTE_COUNT"]
 
@@ -331,8 +338,11 @@ class FilterOutliers(BaseEstimator, TransformerMixin):
 
     def transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
         """
-        Returns the dataframe with non-outlier data points filtered out.
+        Returns the dataframe with outliers only.
         """
+        if X.anomalies_.empty:
+            raise AttributeError("Anomaly detection algorithm not run yet.")
+
         min_bound, max_bound = norm.ppf(self.sig/2), norm.ppf(1 - self.sig/2)
 
         return X[(X["STANDARD_DEVIATIONS"] >= max_bound) |
@@ -345,7 +355,7 @@ def dimension_pipeline(measure: str, dimension: str, frequency: str = "W-MON",
     Creates and returns a pipeline to collapse down to a single dimension,
     resample to a given frequency, and add a measure variable.
 
-    If dimension == "ALL", all dimensions will be collapsed down (i.e. no
+    If dimension is ALL, all dimensions will be collapsed down (i.e. no
     dimensions remaining).
 
     Parameters
@@ -381,6 +391,19 @@ def dimension_pipeline(measure: str, dimension: str, frequency: str = "W-MON",
 
 def outliers_pipeline(dimension: str, category: str,
                       sig: float = 0.05) -> Pipeline:
+    """
+    Creates and returns a pipeline to filter for a given category's outliers
+    for a given dimension.
+
+    Parameters
+    ----------
+    dimension
+        The dimension to filter for.
+    category
+        The category to filter for.
+    sig
+        The significance level to use for determining the outliers.
+    """
     return Pipeline([
         ("FilterCategory", FilterCategory(dimension, [category])),
         ("FilterOutliers", FilterOutliers(sig))
