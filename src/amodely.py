@@ -73,7 +73,7 @@ class Amodely:
     @measure.setter
     def measure(self, measure: str) -> None:
         """
-        Sets the measure to the given string.
+        Sets the selected measure to the given string.
         """
         if measure in STRUCTURE.keys():
             self._measure = measure
@@ -90,7 +90,7 @@ class Amodely:
     @dimension.setter
     def dimension(self, dimension: str) -> None:
         """
-        Sets the dimension to the given string.
+        Sets the selected dimension to the given string.
         """
         dimension = dimension.upper()
         if dimension in self.dimensions or dimension == "ALL":
@@ -109,8 +109,11 @@ class Amodely:
     @property
     def categories(self) -> list[str]:
         """
-        Returns a list of all the categories in the selected dimension.
+        Returns a list of all the categories in the selected dimension. If the
+        selected dimension is ALL, returns a list with a single element "ALL".
         """
+        if self.dimension == "ALL":
+            return ["ALL"]
         return sorted(set(self.df[self.dimension]))
 
     @property
@@ -146,8 +149,9 @@ class Amodely:
         """
         Returns a list of the bad categories in the working dataframe.
 
-        Bad categories have less than 100 data points and as such tend to cause
-        problems with the anomaly detection algorithm.
+        Bad categories have less than 100 data points and tend to cause
+        problems with the anomaly detection algorithm. If the selected
+        dimension is ALL, an empty list is returned.
         """
         if self.dimension == "ALL":
             return []
@@ -160,11 +164,12 @@ class Amodely:
                 if "Unknown" in category:
                     return [*filt.drop(filt.index[~filt]).index, category]
 
-            return [*filt.drop(filt.index[~filt]).index]
+            return filt.drop(filt.index[~filt]).index
 
     def reset_working(self) -> None:
         """
-        Resets the working dataframe to the state of the main dataframe.
+        Resets the working dataframe to the state of the main dataframe (as a
+        copy).
         """
         self.df = self.main_df.copy()
 
@@ -232,15 +237,14 @@ class Amodely:
         sig_level
             The significance level to use for the anomaly detection algorithm.
         """
-        self.reset_working()
-
         # collapse data to one dimension, remove bad categories, convert to
         # weekly data, add measure variable
+        self.reset_working()
         self.df = pl.dimension_pipeline(self.measure, self.dimension,
                                         bad_categories=self.bad_categories) \
                     .fit_transform(self.df)
 
-        start_time = time.time()
+        start_time = time.time()  # timing for diagnostic purposes
         anomalies = []
 
         for category in self.categories:
@@ -297,7 +301,7 @@ class Amodely:
                 df["ANOMALY"] = (df["STANDARD_DEVIATIONS"] <= min_bound) | \
                                 (df["STANDARD_DEVIATIONS"] >= max_bound)
 
-                # add df of anomalies for this category to list
+                # add df of anomalies to list
                 anomalies.append(df)
 
         print(f"Done, took {round(time.time() - start_time, 2)} seconds\n")

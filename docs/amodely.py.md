@@ -22,12 +22,12 @@ Parameters
 #### `@property Amodely.measure -> str`
 
 Getter: Returns the selected measure. <br />
-Setter: Sets the measure to the given string.
+Setter: Sets the selected measure to the given string.
 
 #### `@property Amodely.dimension -> str`
 
 Getter: Returns the selected dimension. <br />
-Setter: Sets the dimension to the given string.
+Setter: Sets the selected dimension to the given string.
 
 #### `@property Amodely.dimensions -> list[str]`
 
@@ -35,7 +35,7 @@ Returns a list of all the dimensions in the main dataframe.
 
 #### `@property Amodely.categories -> list[str]`
 
-Returns a list of all the categories in the selected dimension.
+Returns a list of all the categories in the selected dimension. If the selected dimension is ALL, returns a list with a single element `"ALL"`.
 
 #### `@property Amodely.main_df -> pd.DataFrame`
 
@@ -51,7 +51,7 @@ Setter: Sets the working dataframe to a copy of the given dataframe.
 
 Returns a list of the bad categories in the working dataframe.
 
-Bad categories have less than 100 data points and as such tend to cause problems with the anomaly detection algorithm.
+Bad categories have less than 100 data points and tend to cause problems with the anomaly detection algorithm. If the selected dimension is ALL, an empty list is returned.
 
 #### `Amodely.reset_working()`
 
