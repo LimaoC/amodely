@@ -114,7 +114,7 @@ class Amodely:
         """
         if self.dimension == "ALL":
             return ["ALL"]
-        return sorted(set(self.df[self.dimension]))
+        return sorted(set(self.main_df[self.dimension]))
 
     @property
     def main_df(self) -> pd.DataFrame:
@@ -147,7 +147,7 @@ class Amodely:
     @property
     def bad_categories(self) -> list[str]:
         """
-        Returns a list of the bad categories in the working dataframe.
+        Returns a list of the bad categories in the selected dimension.
 
         Bad categories have less than 100 data points and tend to cause
         problems with the anomaly detection algorithm. If the selected
@@ -157,7 +157,7 @@ class Amodely:
             return []
         else:
             # find categories with less than 100 entries
-            filt = self.df[self.dimension].value_counts() <= 100
+            filt = self.df[self.dimension].value_counts() < 100
 
             # find "Unknown" categories
             for category in self.categories:
@@ -221,7 +221,9 @@ class Amodely:
         """
         self.anomalies_.to_excel(f"{filename}.xlsx")
 
-    def detect_anomalies(self, method: str, sig_level: float = 0.05) -> None:
+    def detect_anomalies(self, method: str, sig_level: float = 0.05,
+                         filter_dimension: str = "",
+                         filter_categories: list = []) -> None:
         """
         Runs an anomaly detection algorithm on the model's working dataframe
         using the selected measure and dimension. The output is stored in the
@@ -236,10 +238,21 @@ class Amodely:
             available options are "arima", "stl",
         sig_level
             The significance level to use for the anomaly detection algorithm.
+        filter_dimension
+            An (optional) dimension, different to the model's selected
+            dimension, to filter for before the anomaly detection algorithm is
+            run. See /src/dash-app/app.py for more details.
+        filter_categories
+            An (optional) category(s) to filter for in the filter dimension.
         """
+        # filter for filter dimension & categories if specified
+        self.reset_working()
+        if filter_dimension:
+            self.df = pl.FilterCategory(filter_dimension, filter_categories) \
+                        .fit_transform(self.df)
+
         # collapse data to one dimension, remove bad categories, convert to
         # weekly data, add measure variable
-        self.reset_working()
         self.df = pl.dimension_pipeline(self.measure, self.dimension,
                                         bad_categories=self.bad_categories) \
                     .fit_transform(self.df)

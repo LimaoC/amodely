@@ -76,7 +76,7 @@ If no anomaly detection algorithm was run before this method was called, the out
 Parameters
 - `filename` <br /> The filename of the output spreadsheet. The default is `output.xlsx`.
 
-#### `Amodely.detect_anomalies(method: str, sig_level: float = 0.05)`
+#### `Amodely.detect_anomalies(method: str, sig_level: float = 0.05, filter_dimension: str = "", filter_categories: list = [])`
 
 Runs an anomaly detection algorithm on the model's working dataframe using the selected measure and dimension. The output is stored in the `anomalies_` attribute.
 
@@ -85,3 +85,5 @@ The methods that have been implemented are ARIMA (outdated) and STL.
 Parameters
 - `method` <br /> The method to use for the anomaly detection algorithm. The available options are `arima`, `stl`,
 - `sig_level` <br /> The significance level to use for the anomaly detection algorithm.
+- `filter_dimension` <br /> An (optional) dimension, different to the model's selected dimension, to filter for before the anomaly detection algorithm is run. See `/src/dash-app/app.py` for more details.
+- `filter_categories` <br /> An (optional) category(s) to filter for in the filter dimension.
