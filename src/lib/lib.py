@@ -41,7 +41,7 @@ COLOR_PARAMS = dict(  # for plot.ly graphs
     color_discrete_sequence=COLOR_PALETTE
 )
 DEFAULT_MEASURE = "CONVERSION_RATE"  # default on first load for graphs
-DEFAULT_DIMENSION = "STATE_CODE"  # default on first load for graphs
+DEFAULT_DIMENSION = "ALL"  # default on first load for graphs
 DEFAULT_HOVER_DATA = dict(  # default on first load for graphs
     points=[dict(
         curveNumber=0,
