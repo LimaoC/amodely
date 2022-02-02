@@ -315,9 +315,6 @@ class AddMeasure(BaseEstimator, TransformerMixin):
 class FilterOutliers(BaseEstimator, TransformerMixin):
     """
     Transformer to filter for outliers in normally distributed data.
-
-    The data must have been run through the anomaly detection algorithm first;
-    i.e. X.anomalies_ is not empty.
     """
     def __init__(self, sig: float) -> None:
         """
@@ -338,11 +335,8 @@ class FilterOutliers(BaseEstimator, TransformerMixin):
 
     def transform(self, X: pd.DataFrame, y=None) -> pd.DataFrame:
         """
-        Returns the dataframe with outliers only.
+        Returns the anomaly dataframe with outliers only.
         """
-        if X.anomalies_.empty:
-            raise AttributeError("Anomaly detection algorithm not run yet.")
-
         min_bound, max_bound = norm.ppf(self.sig/2), norm.ppf(1 - self.sig/2)
 
         return X[(X["STANDARD_DEVIATIONS"] >= max_bound) |

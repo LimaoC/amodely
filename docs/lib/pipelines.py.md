@@ -55,9 +55,7 @@ Returns the dataframe with an added measure column at the end.
 
 Transformer to filter for outliers in normally distributed data.
 
-The data must have been run through the anomaly detection algorithm first; i.e. `X.anomalies_` is not empty.
-
-Returns the dataframe with outliers only.
+Returns the anomaly dataframe with outliers only.
 
 
 ### `dimension_pipeline(measure: str, dimension: str, frequency: str = "W-MON", bad_categories: list[str] = [])`
