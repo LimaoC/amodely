@@ -1,8 +1,6 @@
 """
-################################## models.py ##################################
 This module is used to read in the main dataframe and to initialise the master
 and anomaly detection models for the dashboard.
-###############################################################################
 """
 
 

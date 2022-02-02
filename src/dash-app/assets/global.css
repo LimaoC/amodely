@@ -8,19 +8,42 @@
     border: none;
 }
 
+.heading {
+    text-align: center;
+}
+
+/* gives padding around each card item */
 .dashboard > * > .row, [class^='col-'] > * {
     padding: 0.5rem 0;
 }
 
+/* ensure master configuration card size is the same as the graph size */
 .col-3 > div, .col-3 > div > .card {
     height: 100%;
 }
 
-.js-plotly-plot {
-    min-height: 450px;
+.col-9 {
+    display: flex;
+    flex-flow: column;
+}
+
+.col-9 > .row:first-child {
+    flex: 1;
+    overflow: auto;
     height: 100%;
 }
 
-.heading {
-    text-align: center;
+.col-9 > .row:first-child > .col div:not(
+    .dash-graph > div:first-child,
+    .modebar-container,
+    .modebar-container *,
+    .editable ) {
+    /* expand everything except the plotly options bar and an invisible div
+    above the dash graph */
+    height: 100%;
+}
+/*  */
+
+.card-body > div, .dash-graph {
+    height: 100%;
 }
