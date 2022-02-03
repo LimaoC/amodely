@@ -1,5 +1,11 @@
 """
-This module provides helper functions for the Dash app.
+This module contains the graphs and configurations used by the Dash app.
+
+There are two main Graphs - the MasterGraph (for the master dashboard) and the
+AnomalyGraph (for the anomaly detection dashboard). They are independent from
+each other on the dashboard (i.e. they are separate copies of the data). Each
+class contains relevant methods to render and generate the graphs,
+configurations, etc. on the dashboard.
 """
 
 from dash import dash_table
@@ -43,7 +49,14 @@ def get_title(model: Amodely) -> str:
 
 def draw_card(contents, **kwargs) -> dbc.Card:
     """
-    Returns a formatted card element.
+    Returns a formatted Card element.
+
+    Parameters
+    ----------
+    contents
+        The contents of the Card element.
+    **kwargs
+        Arbitrary keyword arguments to attach to the Div.
     """
     return dbc.Card(
         dbc.CardBody([
@@ -59,7 +72,7 @@ class Graph:
     """
     def __init__(self, model: Amodely) -> None:
         """
-        Initialises a graph with an Amodely model
+        Initialises a graph with an Amodely model.
         """
         self.model = model
 
@@ -136,7 +149,7 @@ class Graph:
         """
         raise NotImplementedError
 
-    def draw_graph(self, graph_id: str) -> html.Div:
+    def draw_graph(self, config_id: str) -> html.Div:
         """
         Returns a formatted card element containing a graph.
 
@@ -148,7 +161,7 @@ class Graph:
         return html.Div(
             draw_card(
                 dcc.Graph(
-                    id=graph_id,
+                    id=config_id,
                     figure=self.get_figure()
                 )
             )
@@ -156,14 +169,14 @@ class Graph:
 
     def draw_graph_config(self) -> html.Div:
         """
-        Returns a formatted card element with graph configurations and a
+        Returns a formatted Card element with graph configurations and a
         description of the graph.
         """
         raise NotImplementedError
 
-    def draw_graph_slider(self, slider_id: str) -> html.Div:
+    def draw_graph_slider(self, config_id: str) -> html.Div:
         """
-        Returns a formatted card element with a slider to control the quote
+        Returns a formatted Card element with a slider to control the quote
         year.
 
         Parameters
@@ -182,7 +195,7 @@ class Graph:
         return html.Div(
             draw_card(
                 dcc.Slider(
-                    id=slider_id,
+                    id=config_id,
                     min=2019,
                     max=max_year,
                     value=2019,
@@ -274,7 +287,7 @@ class MasterGraph(Graph):
         Parameters
         ----------
         config_ids
-            A 4-tuple of ids to assign to the measure Dropdown, dimension
+            A 5-tuple of ids to assign to the measure Dropdown, dimension
             Dropdown, filter dimension Dropdown, filter category Dropdown, and
             Checklist respectively.
         """
@@ -301,9 +314,12 @@ class MasterGraph(Graph):
 
 
 class AnomalyGraph(Graph):
+    """
+    AnomalyGraph is a Graph used for the anomaly detection dashboard
+    """
     def __init__(self, model: Amodely) -> None:
         """
-        Initialises an anomaly graph with an Amodely model
+        Initialises an anomaly detection graph with an Amodely model
         """
         super().__init__(model)
 
@@ -581,7 +597,7 @@ class AnomalyGraph(Graph):
 
     def draw_graph_config(self, config_ids: tuple[str]) -> html.Div:
         """
-        Returns a formatted card element with graph configurations and a
+        Returns a formatted Card element with graph configurations and a
         description of the graph.
 
         Parameters
@@ -617,14 +633,14 @@ class AnomalyGraph(Graph):
             ])
         )
 
-    def draw_conf_int_slider(self, slider_id: str) -> html.Div:
+    def draw_conf_int_slider(self, config_id: str) -> html.Div:
         """
-        Returns a formatted card element with a slider to control the
+        Returns a formatted Card element with a slider to control the
         confidence interval for the anomaly detection algorithm.
 
         Parameters
         ----------
-        slider_id
+        config_id
             The id to assign to the Slider element.
         """
         # 80% up to 97.5% in intervals of 2.5%
@@ -634,7 +650,7 @@ class AnomalyGraph(Graph):
         return html.Div(
             draw_card(
                 dcc.Slider(
-                    id=slider_id,
+                    id=config_id,
                     min=intervals[0],
                     max=intervals[-1],
                     value=intervals[-2],  # default to 95% confidence interval
@@ -646,6 +662,20 @@ class AnomalyGraph(Graph):
 
     def get_table(self, config_id: str, sig: float = 0.05
                   ) -> dash_table.DataTable:
+        """
+        Returns a Plot.ly anomaly graph data table based on the anomalies that
+        have been detected.
+
+        The table contents are based on the currently chosen configurations and
+        parameters.
+
+        Parameters
+        ----------
+        config_id
+            The id to assign to the DataTable element.
+        sig
+            The significance level to filter for outliers at.
+        """
         df = self.model.anomalies_.copy()
         df[DATE] = df[DATE].dt.date
         df.drop(["ANOMALY"], axis="columns", inplace=True)
@@ -660,7 +690,19 @@ class AnomalyGraph(Graph):
 
         return table
 
-    def draw_table(self, table_id: str, sig: float = 0.05) -> html.Div:
+    def draw_table(self, config_id: str, sig: float = 0.05) -> html.Div:
+        """
+        Returns a formatted Card element with the anomaly data table.
+
+        Parameters
+        ----------
+        config_id
+            The id to assign to the DataTable element.
+        sig
+            The significance level to filter for outliers at.
+        """
         return html.Div(
-            self.get_table(table_id, sig)
+            draw_card(
+                self.get_table(config_id, sig)
+            )
         )

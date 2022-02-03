@@ -135,7 +135,7 @@ def update_master_graph(measure: str, dimension: str, year: int,
     Returns
     -------
     A 2-tuple of the updated master graph Figure and a list of categories to
-    display on the "Filter for Categories" dropdown.
+    display on the "Filter for Categories" Dropdown.
     """
     print(f"Master: {measure}, {dimension}, {year}, {checklist}")  # debug
 
@@ -212,9 +212,9 @@ def update_anomaly_graph(measure: str, dimension: str, year: int,
     Returns
     -------
     A 4-tuple of the updated anomaly graph Figure, a list of categories to
-    display on the "Filter for Categories" dropdown, a list of columns to
-    display on the data table, and the data to be displayed on the data table
-    as a dictionary.
+    display on the "Filter for Categories" Dropdown, a list of columns to
+    display on the DataTable, and the data to be displayed on the DataTable
+    as a dict.
     """
     print(f"Anomaly: {measure}, {dimension}, {year}")  # debug
 
