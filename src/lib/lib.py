@@ -8,6 +8,7 @@ import plotly.express as px
 
 # ----------------------------- DATA CONSTANTS ------------------------------ #
 
+DATASET_NAME = "dataset.xlsx"
 DATE = "QUOTE_DATE"  # name of quote date column
 
 # STRUCTURE contains measure variables as keys, which are themselves

@@ -10,7 +10,7 @@ import os
 import pandas as pd
 
 from ..amodely import Amodely
-from ..lib.lib import DEFAULT_DIMENSION, DEFAULT_MEASURE
+from ..lib.lib import DATASET_NAME, DEFAULT_DIMENSION, DEFAULT_MEASURE
 from ..lib.pipelines import dimension_pipeline
 
 
@@ -18,7 +18,7 @@ load_dotenv()
 DATASET_PATH = os.environ.get("DATASET_PATH")
 
 # read in dataframe
-df = pd.read_excel(DATASET_PATH + "Conversion Data Extended Period.xlsx")
+df = pd.read_excel(DATASET_PATH + DATASET_NAME)
 
 # dimension pipeline with default settings
 default_pipeline = dimension_pipeline(DEFAULT_MEASURE, DEFAULT_DIMENSION)
