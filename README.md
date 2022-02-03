@@ -21,6 +21,9 @@
         <li>
             <a href="#usage">Usage</a>
         </li>
+        <li>
+            <a href="#documentation">Documentation</a>
+        </li>
     </ol>
 </details>
 
@@ -148,3 +151,7 @@ Examples of how the dashboard can be used (note that the data below was randomly
 - Table of anomalies based on the current configurations of the anomaly detection dashboard
 - Updates dynamically when settings/configurations are changed
 - Export as CSV
+
+### Documentation
+
+The documentation can be viewed [here](/docs/).
