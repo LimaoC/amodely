@@ -173,38 +173,6 @@ class Amodely:
         """
         self.df = self.main_df.copy()
 
-    def append(self, df: pd.DataFrame, sort_after: bool = False) -> None:
-        """
-        Appends additional data to the dataframe.
-
-        The columns of the given dataframe must be the same as the columns of
-        the main dataframe, or this method will do nothing. Note: this method
-        doesn't affect the working dataframe.
-
-        Parameters
-        ----------
-        df
-            Dataframe containing new entries to be added to the main dataframe.
-        sort_after
-            Whether a sort should be performed on the main dataframe after
-            appending the data. This is only needed if the data from the
-            additional dataframe does not "match" the sort of the main
-            dataframe (e.g. dimensions and categories not sorted in the same
-            order).
-        """
-        df = pl.FillNA(0).fit_transform(df)  # convert NaNs to zeroes
-
-        # concatenate dataframe if the columns are the same
-        if set(self._main_df.columns) == set(df.columns):
-            self._main_df = pd.concat(
-                objs=[self._main_df, df],
-                axis=0,
-                ignore_index=True)  # reset index after concatenation
-
-            if sort_after:  # sort by date
-                self._main_df.sort_values(
-                    by=DATE, inplace=True, ignore_index=True)
-
     def download_anomalies(self, filename: str = "output") -> None:
         """
         Downloads the dataframe of anomalies to a spreadsheet (.xlsx).

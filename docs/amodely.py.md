@@ -4,8 +4,6 @@ This module contains the Amodely class, which is the anomaly detection model. It
 
 The model stores two dataframes - the main dataframe (`main_df` attribute) and the working dataframe (`df` attribute). Data processing, pipelining, anomaly detection algorithms, etc. are done on the working dataframe. When you want to use another configuration (i.e. another measure or dimension), the working dataframe can be reset to the state of the main dataframe using the `reset_working()` method. For this reason, the main dataframe shouldn't be altered at all.
 
-(adding to the main df)
-
 An anomaly detection algorithm can be run on the working dataframe using the method `detect_anomalies()` (configuration options available). The results of the algorithm are stored in the `anomalies_` dataframe attribute (see [this](https://blog.finxter.com/why-does-the-scikit-learn-library-use-a-trailing-underscore-convention-for-attribute-names/) for an explanation of the underscore).
 
 ---
@@ -56,16 +54,6 @@ Bad categories have less than 100 data points and tend to cause problems with th
 #### `Amodely.reset_working()`
 
 Resets the working dataframe to the state of the main dataframe (as a copy).
-
-#### `Amodely.append(df: pd.DataFrame, sort_after: bool = False, reset_working: bool = False)`
-
-Appends additional data to the dataframe.
-
-The columns of the given dataframe must be the same as the columns of the main dataframe, or this method will do nothing. Note: this method doesn't affect the working dataframe.
-
-Parameters
-- `df` <br /> Dataframe containing new entries to be added to the main dataframe.
-- `sort_after` <br /> Whether a sort should be performed on the main dataframe after appending the data. This is only needed if the data from the additional dataframe does not "match" the sort of the main dataframe (e.g. dimensions and categories not sorted in the same order).
 
 #### `Amodely.download_anomalies(filename: str = "output")`
 
