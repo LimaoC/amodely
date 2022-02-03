@@ -47,3 +47,7 @@
 .card-body > div, .dash-graph {
     height: 100%;
 }
+
+.dropdowns > div:last-child {
+    margin-top: 10px;
+}

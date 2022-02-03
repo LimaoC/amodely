@@ -2,10 +2,12 @@
 This module provides helper functions for the Dash app.
 """
 
+from dash import dash_table
 from dash import dcc
 from dash import html
 import dash_bootstrap_components as dbc
 from datetime import datetime, timedelta
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -167,7 +169,7 @@ class Graph:
         Parameters
         ----------
         config_id
-            The id to assign to the Dropdown element.
+            The id to assign to the Slider element.
         """
         min_year = self.model.main_df[DATE].min().year
         max_year = self.model.main_df[DATE].max().year
@@ -305,7 +307,8 @@ class AnomalyGraph(Graph):
         """
         super().__init__(model)
 
-    def get_figure(self, max_size: int = 30, sig: float = 0.05) -> go.Figure:
+    def get_figure(self, max_size: int = 30, sig_level: float = 0.05
+                   ) -> go.Figure:
         """
         Returns a Plot.ly anomaly graph figure based on the model dataframe.
 
@@ -342,7 +345,7 @@ class AnomalyGraph(Graph):
             df = self.model.anomalies_
             stds = df["STANDARD_DEVIATIONS"]
             # create dataframe of outliers & outlier standard deviations
-            df_outliers = pl.FilterOutliers(sig).fit_transform(df)
+            df_outliers = pl.FilterOutliers(sig_level).fit_transform(df)
             stds_outliers = abs(df_outliers["STANDARD_DEVIATIONS"])
 
             scatter_params = dict(  # params common to scatter & bubble plot
@@ -409,7 +412,7 @@ class AnomalyGraph(Graph):
 
                 # create dataframe of outliers & outlier standard deviations
                 df_outliers = pl.outliers_pipeline(self.model.dimension,
-                                                   category, sig) \
+                                                   category, sig_level) \
                                 .fit_transform(self.model.anomalies_)
                 stds_outliers = abs(df_outliers["STANDARD_DEVIATIONS"])
 
@@ -556,7 +559,7 @@ class AnomalyGraph(Graph):
 
         return fig
 
-    def draw_sub_graph(self, graph_id: str, hover_data: dict):
+    def draw_sub_graph(self, graph_id: str, hover_data: dict) -> html.Div:
         """
         Returns a formatted card element containing an anomaly sub graph.
 
@@ -576,7 +579,7 @@ class AnomalyGraph(Graph):
             )
         ])
 
-    def draw_graph_config(self, config_ids: tuple[str]):
+    def draw_graph_config(self, config_ids: tuple[str]) -> html.Div:
         """
         Returns a formatted card element with graph configurations and a
         description of the graph.
@@ -584,8 +587,9 @@ class AnomalyGraph(Graph):
         Parameters
         ----------
         config_ids
-            A 3-tuple of ids to assign to the measure Dropdown, dimension
-            Dropdown, and Checklist respectively.
+            A 5-tuple of ids to assign to the measure Dropdown, dimension
+            Dropdown, filter dimension Dropdown, filter category Dropdown,
+            and confidence interval Slider respectively.
         """
         return html.Div(
             draw_card([
@@ -602,6 +606,61 @@ class AnomalyGraph(Graph):
                     html.Br(),
                     html.Label("Filter for Category(s):"),
                     self.get_filter_category_dropdown(config_ids[3]),
+                    html.Br(),
+                    html.Label("Confidence Interval:"),
+                    self.draw_conf_int_slider(config_ids[4]),
+                    # html.Br(),
+                    # html.P("80% ≈ 1.28 standard deviations"),
+                    # html.P("90% ≈ 1.64 standard deviations"),
+                    # html.P("95% ≈ 1.96 standard deviations")
                 ], className="dropdowns"),
             ])
+        )
+
+    def draw_conf_int_slider(self, slider_id: str) -> html.Div:
+        """
+        Returns a formatted card element with a slider to control the
+        confidence interval for the anomaly detection algorithm.
+
+        Parameters
+        ----------
+        slider_id
+            The id to assign to the Slider element.
+        """
+        # 80% up to 97.5% in intervals of 2.5%
+        intervals = np.linspace(80, 100, 8, endpoint=False) / 100
+        marks = {interv: f"{interv*100}%" for interv in intervals}
+
+        return html.Div(
+            draw_card(
+                dcc.Slider(
+                    id=slider_id,
+                    min=intervals[0],
+                    max=intervals[-1],
+                    value=intervals[-2],  # default to 95% confidence interval
+                    marks=marks,
+                    step=0.025
+                )
+            )
+        )
+
+    def get_table(self, config_id: str, sig: float = 0.05
+                  ) -> dash_table.DataTable:
+        df = self.model.anomalies_.copy()
+        df[DATE] = df[DATE].dt.date
+        df.drop(["ANOMALY"], axis="columns", inplace=True)
+        df = pl.FilterOutliers(sig).fit_transform(df)
+
+        table = dash_table.DataTable(
+            id=config_id,
+            columns=[{"name": col, "id": col} for col in df.columns],
+            data=df.to_dict("records"),
+            export_format="csv"
+        )
+
+        return table
+
+    def draw_table(self, table_id: str, sig: float = 0.05) -> html.Div:
+        return html.Div(
+            self.get_table(table_id, sig)
         )

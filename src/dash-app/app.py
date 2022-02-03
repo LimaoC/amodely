@@ -14,7 +14,7 @@ import plotly.graph_objects as go
 from .models import master, anomaly
 from ..lib import pipelines as pl
 from . import graphs
-from ..lib.lib import DEFAULT_HOVER_DATA
+from ..lib.lib import DEFAULT_HOVER_DATA, DATE
 
 
 # initialise app
@@ -52,7 +52,7 @@ app.layout = html.Div([
                         "master-input-dimension",
                         "master-input-filter-dimension",
                         "master-input-filter-category",
-                        "master-input-checklist"
+                        "master-input-checklist",
                     ))
                 ], width=3)
             ]),
@@ -81,136 +81,21 @@ app.layout = html.Div([
                         "anomaly-input-measure",
                         "anomaly-input-dimension",
                         "anomaly-input-filter-dimension",
-                        "anomaly-input-filter-category"
+                        "anomaly-input-filter-category",
+                        "anomaly-input-conf-int"
                     ))
                 ], width=3)
+            ]),
+            dbc.Row([  # anomaly table
+                dbc.Col([
+                    anomaly_graph.draw_table("anomaly-table")
+                ], width=12)
             ])
         ])
     ], className="dashboard")
 ], className="webpage")
 
 # ------------------------------ APP CALLBACKS ------------------------------ #
-
-
-@app.callback(
-    Output("anomaly-sub-graph", "figure"),
-    Input("anomaly-graph", "hoverData"),
-    Input("anomaly-input-filter-dimension", "value"),
-    Input("anomaly-input-filter-category", "value")
-)
-def update_hover(hover_data: dict, filter_dimension: str,
-                 filter_categories: list) -> go.Figure:
-    """
-    Callback to update the anomaly sub-graph on hover.
-
-    Parameters
-    ----------
-    hover_data
-        The hovered data.
-    filter_dimension
-        The dimension to filter for.
-    filter_categories
-        A list of categories to filter for.
-
-    Returns
-    -------
-    The updated anomaly sub-graph Figure.
-    """
-    anomaly.reset_working()
-
-    # filter for the categories specified
-    if filter_categories:
-        anomaly.df = pl.FilterCategory(filter_dimension, filter_categories) \
-                       .fit_transform(anomaly.df)
-
-    anomaly.df = pl.dimension_pipeline(anomaly.measure, anomaly.dimension,
-                                       frequency="D",
-                                       bad_categories=anomaly.bad_categories) \
-                   .fit_transform(anomaly.df)
-
-    if hover_data is None:
-        hover_data = DEFAULT_HOVER_DATA
-
-    return graphs.AnomalyGraph(anomaly).get_sub_figure(hover_data)
-
-
-@app.callback(
-    Output("anomaly-graph", "figure"),
-    Output("anomaly-input-filter-category", "options"),
-    Input("anomaly-input-measure", "value"),
-    Input("anomaly-input-dimension", "value"),
-    Input("anomaly-input-year", "value"),
-    Input("anomaly-input-filter-dimension", "value"),
-    Input("anomaly-input-filter-category", "value"),
-)
-def update_anomaly_graph(measure: str, dimension: str, year: int,
-                         filter_dimension: str, filter_categories: list
-                         ) -> go.Figure:
-    """
-    Callback to update the anomaly graph.
-
-    Parameters
-    ----------
-    measure
-        The measure to select. A list of options can be found in
-        /src/lib/lib.py.
-    dimension
-        The dimension to select. Options are determined from the dataframe
-        columns.
-    year
-        The year to select, or 2019 to select all years (see explanation in
-        /src/dash-app/graphs.py).
-    filter_dimension
-        The dimension to filter for.
-    filter_categories
-        A list of categories to filter for.
-
-    Returns
-    -------
-    A 2-tuple of the updated anomaly graph Figure and a list of categories to
-    display on the "Filter for Categories" dropdown.
-    """
-    print(f"Anomaly: {measure}, {dimension}, {year}")  # debug
-
-    anomaly.reset_working()
-
-    # update model's parameters if they have changed
-    if measure != anomaly.measure:
-        anomaly.measure = measure
-    if dimension != anomaly.dimension:
-        anomaly.dimension = dimension
-
-    # remove bad categories from "Filter for Dimension" dropdown if specified
-    filter_category_options = sorted(set(master.main_df[filter_dimension])) \
-        if filter_dimension else []
-
-    # filter for the categories specified
-    if filter_categories:
-        anomaly.df = pl.FilterCategory(filter_dimension, filter_categories) \
-                       .fit_transform(anomaly.df)
-
-    # apply any changes to measure, dimension, and bad categories to the
-    # anomaly working dataframe
-    anomaly.df = pl.dimension_pipeline(anomaly.measure, anomaly.dimension,
-                                       bad_categories=anomaly.bad_categories) \
-                   .fit_transform(anomaly.df)
-    if filter_categories:
-        anomaly.detect_anomalies(method="stl",
-                                 filter_dimension=filter_dimension,
-                                 filter_categories=filter_categories)
-    else:
-        anomaly.detect_anomalies(method="stl")
-
-    if year != 2019:  # 2019 => use all years (see explanation in plotlytools)
-        # filter for the given year
-        anomaly.df = pl.FilterYear(year).fit_transform(anomaly.df)
-        anomaly.anomalies_ = pl.FilterYear(year) \
-                               .fit_transform(anomaly.anomalies_)
-
-    return (
-        graphs.AnomalyGraph(anomaly).get_figure(),
-        [{"label": cat, "value": cat} for cat in filter_category_options]
-    )
 
 
 @app.callback(
@@ -288,6 +173,140 @@ def update_master_graph(measure: str, dimension: str, year: int,
         graphs.MasterGraph(master).get_figure(),
         [{"label": cat, "value": cat} for cat in filter_category_options]
     )
+
+
+@app.callback(
+    Output("anomaly-graph", "figure"),
+    Output("anomaly-input-filter-category", "options"),
+    Output("anomaly-table", "columns"),
+    Output("anomaly-table", "data"),
+    Input("anomaly-input-measure", "value"),
+    Input("anomaly-input-dimension", "value"),
+    Input("anomaly-input-year", "value"),
+    Input("anomaly-input-filter-dimension", "value"),
+    Input("anomaly-input-filter-category", "value"),
+    Input("anomaly-input-conf-int", "value")
+)
+def update_anomaly_graph(measure: str, dimension: str, year: int,
+                         filter_dimension: str, filter_categories: list,
+                         conf_int: int) -> tuple[go.Figure, list, list, dict]:
+    """
+    Callback to update the anomaly graph.
+
+    Parameters
+    ----------
+    measure
+        The measure to select. A list of options can be found in
+        /src/lib/lib.py.
+    dimension
+        The dimension to select. Options are determined from the dataframe
+        columns.
+    year
+        The year to select, or 2019 to select all years (see explanation in
+        /src/dash-app/graphs.py).
+    filter_dimension
+        The dimension to filter for.
+    filter_categories
+        A list of categories to filter for.
+
+    Returns
+    -------
+    A 4-tuple of the updated anomaly graph Figure, a list of categories to
+    display on the "Filter for Categories" dropdown, a list of columns to
+    display on the data table, and the data to be displayed on the data table
+    as a dictionary.
+    """
+    print(f"Anomaly: {measure}, {dimension}, {year}")  # debug
+
+    anomaly.reset_working()
+
+    # update model's parameters if they have changed
+    if measure != anomaly.measure:
+        anomaly.measure = measure
+    if dimension != anomaly.dimension:
+        anomaly.dimension = dimension
+
+    # remove bad categories from "Filter for Dimension" dropdown if specified
+    filter_category_options = sorted(set(master.main_df[filter_dimension])) \
+        if filter_dimension else []
+
+    # filter for the categories specified
+    if filter_categories:
+        anomaly.df = pl.FilterCategory(filter_dimension, filter_categories) \
+                       .fit_transform(anomaly.df)
+
+    # apply any changes to measure, dimension, and bad categories to the
+    # anomaly working dataframe
+    anomaly.df = pl.dimension_pipeline(anomaly.measure, anomaly.dimension,
+                                       bad_categories=anomaly.bad_categories) \
+                   .fit_transform(anomaly.df)
+    if filter_categories:
+        anomaly.detect_anomalies(method="stl",
+                                 sig_level=1-conf_int,
+                                 filter_dimension=filter_dimension,
+                                 filter_categories=filter_categories)
+    else:
+        anomaly.detect_anomalies(method="stl", sig_level=1-conf_int)
+
+    if year != 2019:  # 2019 => use all years (see explanation in plotlytools)
+        # filter for the given year
+        anomaly.df = pl.FilterYear(year).fit_transform(anomaly.df)
+        anomaly.anomalies_ = pl.FilterYear(year) \
+                               .fit_transform(anomaly.anomalies_)
+
+    table = anomaly.anomalies_.copy()
+    table[DATE] = table[DATE].dt.date  # timestamp -> date to get rid of time
+    table.drop(["ANOMALY"], axis="columns", inplace=True)
+    table = pl.FilterOutliers(1-conf_int).fit_transform(table)
+
+    return (
+        graphs.AnomalyGraph(anomaly).get_figure(sig_level=1-conf_int),
+        [{"label": cat, "value": cat} for cat in filter_category_options],
+        [{"name": col, "id": col} for col in table.columns],
+        table.to_dict("records")
+    )
+
+
+@app.callback(
+    Output("anomaly-sub-graph", "figure"),
+    Input("anomaly-graph", "hoverData"),
+    Input("anomaly-input-filter-dimension", "value"),
+    Input("anomaly-input-filter-category", "value")
+)
+def update_hover(hover_data: dict, filter_dimension: str,
+                 filter_categories: list) -> go.Figure:
+    """
+    Callback to update the anomaly sub-graph on hover.
+
+    Parameters
+    ----------
+    hover_data
+        The hovered data.
+    filter_dimension
+        The dimension to filter for.
+    filter_categories
+        A list of categories to filter for.
+
+    Returns
+    -------
+    The updated anomaly sub-graph Figure.
+    """
+    anomaly.reset_working()
+
+    # filter for the categories specified
+    if filter_categories:
+        anomaly.df = pl.FilterCategory(filter_dimension, filter_categories) \
+                       .fit_transform(anomaly.df)
+
+    anomaly.df = pl.dimension_pipeline(anomaly.measure, anomaly.dimension,
+                                       frequency="D",
+                                       bad_categories=anomaly.bad_categories) \
+                   .fit_transform(anomaly.df)
+
+    if hover_data is None:
+        hover_data = DEFAULT_HOVER_DATA
+
+    return graphs.AnomalyGraph(anomaly).get_sub_figure(hover_data)
 
 
 if __name__ == "__main__":
