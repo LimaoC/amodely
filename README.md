@@ -50,7 +50,7 @@ To install and set up the dashboard, open up Windows PowerShell or Git Bash and 
 1. Clone the repo and enter the directory
 
     ```
-    git clone https://bitbucket.budgetdirect.com.au/scm/~lchang/amodely.git
+    git clone https://github.com/LimaoC/amodely.git
 
     cd amodely
     ```
@@ -82,7 +82,7 @@ To install and set up the dashboard, open up Windows PowerShell or Git Bash and 
 5. Create a `.env` file in the root directory with the following variable pointing to the path of the dataset:
 
     ```
-    DATASET_PATH="C:/Directory/To/Dataset/"
+    DATASET_PATH="C:/Path/To/Dataset/"
     ```
 
 6. Change the `DATASET_NAME` variable in `/src/lib/lib.py` (the default is `dataset.xlsx`):
