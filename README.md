@@ -29,13 +29,15 @@
 
 ## About the Project
 
+Amodely is an anomaly detection dashboard that I built during my time as a Pricing Intern at Auto & General. It is used to identify anomalies in time-series data using (primarily) a Seasonal-Trend decomposition with LOESS (STL) algorithm.
+
 ### Tech Stack
 
-- Python
-    - [Dash Plot.ly](https://plotly.com/)
-    - [Pandas](https://pandas.pydata.org/)
-    - [statsmodels](https://www.statsmodels.org/stable/index.html)
-    - [scikit-learn](https://scikit-learn.org/)
+The teck stack consists wholy of Python and various Python frameworks;
+- [Dash Plot.ly](https://plotly.com/)
+- [Pandas](https://pandas.pydata.org/)
+- [statsmodels](https://www.statsmodels.org/stable/index.html)
+- [scikit-learn](https://scikit-learn.org/)
 
 ## Getting Started
 
